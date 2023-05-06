@@ -1,43 +1,37 @@
 // #Conformance #TypeInference #TypeConstraints #UnitsOfMeasure #Regression #Operators #Mutable 
-#if Portable
+#if TESTS_AS_APP
 module Core_subtype
 #endif
+
 #light
 
-let mutable failures = []
-let report_failure s = 
-  stderr.WriteLine " NO"; failures <- s :: failures
-let test s b = stderr.Write(s:string);  if b then stderr.WriteLine " OK" else report_failure s
+let failures = ref []
+
+let report_failure (s : string) = 
+    stderr.Write" NO: "
+    stderr.WriteLine s
+    failures := !failures @ [s]
+
+let test (s : string) b = 
+    stderr.Write(s)
+    if b then stderr.WriteLine " OK"
+    else report_failure (s)
+
 let check s v1 v2 = test s (v1 = v2)
 
 (* TEST SUITE FOR SUBTYPE CONSTRAINTS *)
 
 
-#if NetCore
-#else
-let argv = System.Environment.GetCommandLineArgs() 
-let SetCulture() = 
-  if argv.Length > 2 && argv.[1] = "--culture" then  begin
-    let cultureString = argv.[2] in 
-    let culture = new System.Globalization.CultureInfo(cultureString) in 
-    stdout.WriteLine ("Running under culture "+culture.ToString()+"...");
-    System.Threading.Thread.CurrentThread.CurrentCulture <-  culture
-  end 
-
-do SetCulture()    
-#endif
-
 open System
 open System.IO
-
+open System.Reflection
 open System.Collections.Generic
 
 (* 'a[] :> ICollection<'a> *)
 let f1 (x: 'a[]) = (x :> ICollection<'a>) 
 do let x = f1 [| 3;4; |] in test "test239809" (x.Contains(3))
 
-#if Portable
-#else
+#if !NETCOREAPP
 (* 'a[] :> IReadOnlyCollection<'a> *)
 let f1ReadOnly (x: 'a[]) = (x :> IReadOnlyCollection<'a>) 
 do let x = f1ReadOnly [| 3;4; |] in test "test239809ReadOnly" (x.Count = 2)
@@ -47,8 +41,7 @@ do let x = f1ReadOnly [| 3;4; |] in test "test239809ReadOnly" (x.Count = 2)
 let f2 (x: 'a[]) = (x :> IList<'a>) 
 do let x = f2 [| 3;4; |] in test "test239810" (x.Item(1) = 4)
 
-#if Portable
-#else
+#if !NETCOREAPP
 (* 'a[] :> IReadOnlyList<'a> *)
 let f2ReadOnly (x: 'a[]) = (x :> IReadOnlyList<'a>) 
 do let x = f2ReadOnly [| 3;4; |] in test "test239810ReadOnly" (x.Item(1) = 4)
@@ -62,8 +55,7 @@ do let x = f3 [| 3;4; |] in for x in x do (Printf.printf "val %d\n" x) done
 let f4 (x: 'a[]) = (x :> IList<'a>) 
 do let x = f4 [| 31;42; |] in for x in x do (Printf.printf "val %d\n" x) done
 
-#if Portable
-#else
+#if !NETCOREAPP
 (* Call 'foreachG' using an IReadOnlyList<int> (solved to IEnumerable<int>) *)
 let f4ReadOnly (x: 'a[]) = (x :> IReadOnlyList<'a>) 
 do let x = f4ReadOnly [| 31;42; |] in for x in x do (Printf.printf "val %d\n" x) done
@@ -73,8 +65,7 @@ do let x = f4ReadOnly [| 31;42; |] in for x in x do (Printf.printf "val %d\n" x)
 let f5 (x: 'a[]) = (x :> ICollection<'a>) 
 do let x = f5 [| 31;42; |] in for x in x do (Printf.printf "val %d\n" x) done
 
-#if Portable
-#else
+#if !NETCOREAPP
 (* Call 'foreachG' using an IReadOnlyCollection<int> (solved to IEnumerable<int>) *)
 let f5ReadOnly (x: 'a[]) = (x :> IReadOnlyCollection<'a>) 
 do let x = f5ReadOnly [| 31;42; |] in for x in x do (Printf.printf "val %d\n" x) done
@@ -115,14 +106,13 @@ let testUpcastToEnum1 (x: System.AttributeTargets) = (x :> System.Enum)
 let testUpcastToEnum6 (x: System.Enum) = (x :> System.Enum) 
 
 // these delegates don't exist in portable
-#if Portable
-#else
+#if !UNIX && !NETCOREAPP
 let testUpcastToDelegate1 (x: System.Threading.ThreadStart) = (x :> System.Delegate) 
 
 let testUpcastToMulticastDelegate1 (x: System.Threading.ThreadStart) = (x :> System.MulticastDelegate) 
-#endif
 
 do for name in Directory.GetFiles("c:\\") do stdout.WriteLine name done
+#endif
 
 let f (x : #System.IComparable<'a>) = 1
 
@@ -242,8 +232,31 @@ module SomeRandomOperatorConstraints = begin
 
     let f2 x : float = x * x 
     let f3 x (y:float) = x * y
+
     //let neg4 x (y:System.DateTime) = x + y
+
+    // This example resolves the type of "y" to "TimeSpam". It checks that a single "+" overload between 
+    // two different types DateTime and TimeSpan get resolved via 
+    // via weak SRTP resolution using a DateTime constraint alone.
     let f5 (x:DateTime) y = x + y
+
+    // This example checks a use of TimeSpan/DateTime overloads
+    let f5b (x:DateTime) (y:DateTime) = (x - y) 
+
+
+    // This example checks a use of TimeSpan/DateTime overloads
+    let f5b2 (x:DateTime) (y:TimeSpan) = (x - y) 
+
+    // This example coincidentally checks that the return type is not taken into account before the list of method overloads
+    // is prepared in SRTP resolution.  That is the type of (a - b) is immediately known (and we can use it for
+    // dot-notation name resolution of .TotalSeconds) _immediately_ that the types of a and b are
+    // known and _prior_ to generalization.
+    let f5c (x: DateTime) (y:DateTime) = 
+        (x  - y).TotalSeconds |> int
+
+    let f5c2 (x: DateTime) (y:TimeSpan) = 
+        (x  - y).Second |> int
+
     let f6 (x:int64) y = x + y
     let f7 x y : int64 = x + y
     let f8 x = Seq.reduce (+) x
@@ -254,7 +267,9 @@ module SomeRandomOperatorConstraints = begin
 
     let sum64 seq : int64 = Seq.reduce (+) seq
     let sum32 seq : int64 = Seq.reduce (+) seq
+#if !NETCOREAPP
     let sumBigInt seq : BigInteger = Seq.reduce (+) seq
+#endif
     let sumDateTime (dt : DateTime) (seq : #seq<TimeSpan>) : DateTime = Seq.fold (+) dt seq
 end
 
@@ -1073,7 +1088,7 @@ module InnerConstrainedClosureTests =
             printfn "hello, %A" z
         /// This uses the local type function in another closure that also captures one of the outer arguments
         let h() = g(3,y)
-        /// This just returnes the closure to make sure we don't optimize it all away
+        // This just returnes the closure to make sure we don't optimize it all away
         h
 
 
@@ -1084,7 +1099,7 @@ module InnerConstrainedClosureTests =
             printfn "hello, %A" z
         /// This uses the local type function in another closure that also captures one of the outer arguments
         let h() = g(3)
-        /// This just returnes the closure to make sure we don't optimize it all away
+        // This just returnes the closure to make sure we don't optimize it all away
         h
             
     let Example3 (y:'b,z:'a) = 
@@ -1093,7 +1108,7 @@ module InnerConstrainedClosureTests =
             printfn "hello, %A" z
         /// This uses the local type function in another closure that also captures one of the outer arguments
         let h() = g(3,y)
-        /// This just returnes the closure to make sure we don't optimize it all away
+        // This just returnes the closure to make sure we don't optimize it all away
         h
 
     let Example4 (y:'b,z:'a) = 
@@ -1104,7 +1119,7 @@ module InnerConstrainedClosureTests =
         let h1() = g(3,4,y)
         /// This uses the local type function in another closure that also captures one of the outer arguments
         let h2() = g("3","4",y)
-        /// This just returnes the closure to make sure we don't optimize it all away
+        // This just returnes the closure to make sure we don't optimize it all away
         h1,h2
 
 
@@ -1117,7 +1132,7 @@ module InnerConstrainedClosureTests =
         let h1() = g(3,4,y)
         /// This uses the local type function in another closure that also captures one of the outer arguments
         let h2() = g("3","4",y)
-        /// This just returnes the closure to make sure we don't optimize it all away
+        // This just returnes the closure to make sure we don't optimize it all away
         h1,h2
 
     let Example6 (y:'b,z:'a) = 
@@ -1371,13 +1386,10 @@ module CoercivePipingTest =
     check "clwcweki" (f8 3) (box 3)
     check "clwcweki" (f9 3) (box 3)
 
-#if NetCore
-#else
     // this was the actual repro
     let f (info: System.Reflection.MethodInfo) = 
       System.Attribute.GetCustomAttribute(info, typeof<ReflectedDefinitionAttribute>)
       :?> ReflectedDefinitionAttribute
-#endif
 
 module Test_Dev10_Bug_917383 = 
 
@@ -1484,9 +1496,9 @@ module TestTwoConversionsOK =
 // asserted to be equal.
 //
 //This rule is a deliberate artificial limitation to reduce the complexity 
-// of type inference in the common case, at the cost of making “inline” code 
+// of type inference in the common case, at the cost of making Â“inlineÂ” code 
 // less generic. However, the rule should not apply to op_Explicit and op_Implicit constraints. These are special constraint names, known to the language, and we already have special rules around these operators to ensure that the return type 
-// is effectively considered to be part of the “name” of the constraint
+// is effectively considered to be part of the Â“nameÂ” of the constraint
 //  (i.t. op_Explicit -->  int64 is effectively a different constraint to op_Explicit --> int32). 
 //
 //So the solution is thus to not apply the rule for these constraints. 
@@ -1696,9 +1708,847 @@ module RecordPropertyConstraintTests =
     check "ckjwnewk" (f8()) (System.TimeSpan.FromSeconds 2.0) // after mutation
     check "ckjwnewk" (f10()) "Gary"
 
-let aa =
-  if not failures.IsEmpty then (printfn "Test Failed, failures = %A" failures; exit 1) 
+// See https://github.com/Microsoft/visualfsharp/issues/740 - inlining on subtypes was not allowed
+module InliningOnSubTypes1 = 
+    type A() =
+        static member inline dosomething() = ()
 
-do (stdout.WriteLine "Test Passed"; 
-    System.IO.File.WriteAllText("test.ok","ok"); 
-    exit 0)
+    type B() =
+        inherit A()
+        member inline this.SomethingElse a = a + 10
+        member inline this.SomethingElse2 a b = a + b + 10
+
+    let f () = 
+        let b = B() 
+        let x1 = b.SomethingElse 3
+        let x2 = b.SomethingElse2 3 4
+        (x1, x2)
+    do check "clkewlijwlkw" (f()) (13, 17) 
+
+
+module StructUnionSingleCase = 
+    [<Struct>]
+    type S = S
+
+    do check "wekew0ewek1" (typeof<S>.IsValueType) true
+    do check "wekew0ewek1b" (typeof<S>.BaseType) typeof<System.ValueType>
+
+    type SAbbrev = S
+
+    do check "wekew0ewek2" (typeof<SAbbrev>.IsValueType) true
+    do check "wekew0ewek2b" (typeof<SAbbrev>.BaseType) typeof<System.ValueType>
+
+    type S0 = S0
+    do check "wekew0ewek3" (typeof<S0>.IsValueType) false
+    do check "wekew0ewek3b" (typeof<S0>.BaseType) typeof<obj>
+
+    [<Struct>]
+    type S2 = | S2
+
+    do check "wekew0ewek4" (typeof<S2>.IsValueType) true
+    do check "wekew0ewek4b" (typeof<S2>.BaseType) typeof<System.ValueType>
+
+    [<Struct>]
+    type S3 = | S2a | S3a
+
+    do check "wekew0ewek5" (typeof<S3>.IsValueType) true
+    do check "wekew0ewek5b" (typeof<S3>.BaseType) typeof<System.ValueType>
+
+// See https://github.com/Microsoft/visualfsharp/issues/238
+module GenericPropertyConstraintSolvedByRecord = 
+
+    type hober<'a> = { foo : 'a }
+
+    let inline print_foo_memb x = box (^a : (member foo : 'b) x)
+
+    let v = print_foo_memb { foo=1 } 
+
+
+/// In this case, the presence of the Method(obj) overload meant overload resolution was being applied and resolving to that
+/// overload, even before the full signature of the trait constraint was known.
+module MethodOverloadingForTraitConstraintsIsNotDeterminedUntilSignatureIsKnnown =
+    type X =
+        static member Method (a: obj) = 1
+        static member Method (a: int) = 2
+        static member Method (a: int64) = 3
+
+
+    let inline Test< ^t, ^a when ^t: (static member Method: ^a -> int)> (value: ^a) =
+        ( ^t: (static member Method: ^a -> int)(value))
+
+    let inline Test2< ^t> a = Test<X, ^t> a
+
+    // NOTE, this is seen to be a bug, see https://github.com/Microsoft/visualfsharp/issues/3814
+    // The result should be 2.  
+    // This test has been added to pin down current behaviour pending a future bug fix.
+    check "slvde0vver90u1" (Test2<int> 0) 1
+    check "slvde0vver90u2" (Test2<int64> 0L) 1
+
+/// In this case, the presence of the "Equals" method on System.Object was causing method overloading to be resolved too
+/// early, when ^t was not yet known.  The underlying problem was that we were proceeding with weak resolution
+/// even for a single-support-type trait constraint.
+module MethodOverloadingForTraitConstraintsWhereSomeMethodsComeFromObjectTypeIsNotDeterminedTooEarly =
+    type Test() =
+         member __.Equals (_: Test) = true
+
+    //let inline Equals(a: obj) (b: ^t) =
+    //    match a with
+    //    | :? ^t as x -> (^t: (member Equals: ^t -> bool) (b, x))
+    //    | _-> false
+
+    let a  = Test()
+    let b  = Test()
+
+    // NOTE, this is seen to be a bug, see https://github.com/Microsoft/visualfsharp/issues/3814
+    //
+    // The result should be true.  
+    //
+    // This test should be added to pin down current behaviour pending a future bug fix.
+    //
+    // However the code generated fails peverify.exe so even the pin-down test has been removed for now.
+    //check "cewjewcwec09ew" (Equals a b) false
+
+module SRTPFix = 
+
+    open System
+
+    let inline konst x _ = x
+
+    type CFunctor() = 
+      static member inline fmap (f : ^a -> ^b, a : ^a list) = List.map f a
+      static member inline fmap (f : ^a -> ^b, a : ^a option) =
+        match a with
+        | None -> None
+        | Some x -> Some (f x)
+
+      // default implementation of replace
+      static member inline replace< ^a, ^b, ^c, ^d, ^e when ^a :> CFunctor and (^a or ^d) : (static member fmap : (^b -> ^c) * ^d -> ^e) > (a, f) =
+        ((^a or ^d) : (static member fmap : (^b -> ^c) * ^d -> ^e) (konst a, f))
+
+      // call overridden replace if present
+      static member inline replace< ^a, ^b, ^c when ^b : (static member replace : ^a * ^b -> ^c)>(a : ^a, f : ^b) =
+        (^b : (static member replace : ^a * ^b -> ^c) (a, f))
+
+    let inline replace_instance< ^a, ^b, ^c, ^d when (^a or ^c) : (static member replace : ^b * ^c -> ^d)> (a : ^b, f : ^c) =
+      ((^a or ^c) : (static member replace : ^b * ^c -> ^d) (a, f))
+
+    let inline fmap_instance< ^a, ^b, ^c, ^d, ^e when (^a or ^d) : (static member fmap : (^b -> ^c) * ^d -> ^e)>(f : ^b -> ^c, a : ^d) =
+      ((^a or ^d) : (static member fmap : (^b -> ^c) * ^d -> ^e) (f, a))
+
+    let inline fmap (f : ^a -> ^b) (a : ^c) =
+      fmap_instance<CFunctor, _, _, _, _> (f, a)
+
+    let inline replace (a : ^a) (f : ^b) : ^a0 when (CFunctor or  ^b) : (static member replace :  ^a *  ^b -> ^a0) =
+      replace_instance<CFunctor, _, _, _> (a, f)
+
+    (*
+    type test(arg : string) = class
+      member __.data = arg
+      static member inline fmap (f : char -> char, a : test) = String.map f a.data
+      static member inline replace (a : char, f : test) = test.fmap (konst a, f)
+    end
+
+    let _ =
+      printfn "%A" <| fmap id [1;2;3];
+      printfn "%A" <| replace 5 [1;2;3];
+      printfn "%A" <| fmap ((+) 1) (Some 2);
+      printfn "%A" <| replace 'q' (test("HI"))
+     *)
+
+
+module SRTPFixAmbiguity =
+    // Mini Repro from FSharpPlus https://github.com/gusty/FSharpPlus
+    type Id<'t>(v:'t) = member __.getValue = v
+    type Interface<'t> = abstract member getValue : 't
+
+    type Monad =
+        static member inline InvokeReturn (x:'T) : '``Monad<'T>`` =
+            let inline call (mthd : ^M, output : ^R) = ((^M or ^R) : (static member Return: _ -> _) output)
+            call (Unchecked.defaultof<Monad>, Unchecked.defaultof<'``Monad<'T>``>) x
+        static member Return (_:Interface<'a>) = fun (_:'a) -> Unchecked.defaultof<Interface<'a>> : Interface<'a>
+        static member Return (_:seq<'a>      ) = fun x -> Seq.singleton x                         : seq<'a>
+        static member Return (_:option<'a>   ) = fun x -> Some x                                  : option<'a>
+        static member Return (_:Id<'a>       ) = fun x -> Id x                                    : Id<'a>
+
+        static member inline InvokeBind (source : '``Monad<'T>``) (binder : 'T -> '``Monad<'U>``) : '``Monad<'U>`` =
+            let inline call (mthd : 'M, input : 'I, _output : 'R, f) = ((^M or ^I or ^R) : (static member Bind: _*_ -> _) input, f)
+            call (Unchecked.defaultof<Monad>, source, Unchecked.defaultof<'``Monad<'U>``>, binder)
+        static member Bind (source : Interface<'T>, f : 'T -> Interface<'U>) = f source.getValue    : Interface<'U>
+        static member Bind (source : seq<'T>      , f : 'T -> seq<'U>      ) = Seq.collect f source : seq<'U>
+        static member Bind (source : Id<'T>       , f : 'T -> Id<'U>       ) = f source.getValue    : Id<'U>
+        static member Bind (source :option<'T>    , f : 'T -> _            ) = Option.bind f source : option<'U>
+
+    let inline result (x:'T)                                   = Monad.InvokeReturn x :'``Monad<'T>``
+    let inline (>>=) (x:'``Monad<'T>``) (f:'T->'``Monad<'U>``) = Monad.InvokeBind x f :'``Monad<'U>``
+
+    type ReaderT<'R,'``monad<'T>``> = ReaderT of ('R -> '``monad<'T>``)
+    let runReaderT (ReaderT x) = x : 'R -> '``Monad<'T>``
+    type ReaderT<'R,'``monad<'T>``> with
+        static member inline Return _ = fun (x : 'T) -> ReaderT (fun _ -> result x)                                                   : ReaderT<'R, '``Monad<'T>``> 
+        static member inline Bind (ReaderT (m:_->'``Monad<'T>``), f:'T->_) = ReaderT (fun r -> m r >>= (fun a -> runReaderT (f a) r)) : ReaderT<'R, '``Monad<'U>``>
+
+
+    let test1 : ReaderT<string, option<_>> = ReaderT result >>= result
+    let test2 : ReaderT<string, Id<_>>     = ReaderT result >>= result
+    let test3 : ReaderT<string, seq<_>>    = ReaderT result >>= result
+
+
+// See https://github.com/Microsoft/visualfsharp/issues/4040
+module InferenceRegression4040 = 
+    type Foo() =
+        static let test (t : 'T) : 'T list = 
+            let b : Bar<'T> = new Bar<'T>(t)
+            [b.Value]
+
+        static member Test(t : int) = test t
+
+    and Bar<'U>(value : 'U) =
+        member __.Value = value
+
+    printfn "%A" (Foo.Test 42)
+
+
+// See https://github.com/Microsoft/visualfsharp/issues/4040
+module InferenceRegression4040b = 
+    type Foo() =
+        static let test (t : 'T) : 'T list = 
+            let b : Bar<'T> = new Bar<'T>(t)
+            [b.Value]
+
+        static member Test(t : int) = test t
+
+    and Bar<'T>(value : 'T) =
+        member __.Value = value
+
+    printfn "%A" (Foo.Test 42)
+
+// See https://github.com/Microsoft/visualfsharp/issues/4040
+module InferenceRegression4040C = 
+    type Foo() =
+        static let test (t : 'T) : 'T list = 
+            let b : Bar<'T> = new Bar<'T>(t)
+            [b.Value]
+
+        static member Test(t : int) = test t
+
+    and Bar<'U>(value : 'U) =
+        member __.Value : 'U = value
+
+    printfn "%A" (Foo.Test 42)
+
+
+module TestInheritFunc = 
+    type Foo() =
+        inherit FSharpFunc<int,int>()
+        override __.Invoke(a:int) = a + 1
+
+    check "cnwcki1" ((Foo() |> box |> unbox<int -> int> ) 5) 6
+
+module TestInheritFuncGeneric = 
+    type Foo<'T,'U>() =
+        inherit FSharpFunc<'T,'T>()
+        override __.Invoke(a:'T) = a
+
+    check "cnwcki2" ((Foo<int,int>() |> box |> unbox<int -> int> ) 5) 5
+
+
+module TestInheritFunc2 = 
+    type Foo() =
+        inherit OptimizedClosures.FSharpFunc<int,int,int>()
+        override f.Invoke(a:int) = (fun u -> f.Invoke(a,u))
+        override __.Invoke(a:int,b:int) = a + b + 1
+
+    check "cnwcki3" ((Foo() |> box |> unbox<int -> int -> int> ) 5 6) 12
+
+module TestInheritFunc3 = 
+    type Foo() =
+        inherit OptimizedClosures.FSharpFunc<int,int,int,int>()
+        override f.Invoke(t) = (fun u v -> f.Invoke(t,u,v))
+        override __.Invoke(a:int,b:int,c:int) = a + b + c + 1
+
+    check "cnwcki4" ((Foo() |> box |> unbox<int -> int -> int -> int> ) 5 6 7) 19
+
+module TestSubtypeMatching1 =
+    type A() = class end
+    type B() = inherit A()
+    type C() = inherit A()
+
+    let toName (x: obj) =
+        match x with
+        | :? A -> "A"
+        | :? B -> "B"
+        | :? C -> "C"
+        | _ -> "other"
+
+    check "cnwcki4cewweq1" (toName (A())) "A"
+    check "cnwcki4cewweq2" (toName (B())) "A"
+    check "cnwcki4cewweq3" (toName (C())) "A"
+    check "cnwcki4cewweq4" (toName (obj())) "other"
+
+module TestSubtypeMatching2 =
+    type A() = class end
+    type B() = inherit A()
+    type C() = inherit A()
+
+    let toName (x: obj) =
+        match x with
+        | :? A when false -> "A fail"
+        | :? B -> "B"
+        | :? C -> "C"
+        | _ -> "other"
+
+    check "cnwcki4cewweq5" (toName (A())) "other"
+    check "cnwcki4cewweq6" (toName (B())) "B"
+    check "cnwcki4cewweq7" (toName (C())) "C"
+    check "cnwcki4cewweq8" (toName (obj())) "other"
+
+
+module TestSubtypeMatching3 =
+    type A() = class end
+    type B() = inherit A()
+    type C() = inherit A()
+
+    let toName (x: obj) =
+        match x with
+        | :? A -> "A"
+        | :? B when false -> "B fail"
+        | :? C -> "C"
+        | _ -> "other"
+
+    check "cnwcki4cewweq10" (toName (A())) "A"
+    check "cnwcki4cewweq11" (toName (B())) "A"
+    check "cnwcki4cewweq12" (toName (C())) "A"
+    check "cnwcki4cewweq13" (toName (obj())) "other"
+
+module TestSubtypeMatching4 =
+    type A() = class end
+    type B() = inherit A()
+    type C() = inherit A()
+
+    let toName (x: obj) =
+        match x with
+        | :? C -> "C"
+        | :? B when false -> "B fail"
+        | :? A -> "A"
+        | _ -> "other"
+
+    check "cnwcki4cewweq14" (toName (A())) "A"
+    check "cnwcki4cewweq15" (toName (B())) "A"
+    check "cnwcki4cewweq16" (toName (C())) "C"
+    check "cnwcki4cewweq17" (toName (obj())) "other"
+
+// Test interface matching
+module TestSubtypeMatching5 =
+    type IA = interface end
+    type IB = inherit IA
+    type IC = inherit IA
+    type A() =
+        interface IA
+    type B() =
+        interface IB
+    type C() =
+        interface IC
+
+    let toName (x: obj) =
+        match x with
+        | :? IA when false -> "IA fail"
+        | :? IB -> "IB"
+        | :? IC -> "IC"
+        | _ -> "other"
+
+    check "cnwcki4cewweq18" (toName (A())) "other"
+    check "cnwcki4cewweq19" (toName (B())) "IB"
+    check "cnwcki4cewweq20" (toName (C())) "IC"
+    check "cnwcki4cewweq21" (toName (obj())) "other"
+
+// Multi-column with no 'when'
+module TestSubtypeMatching6 =
+    type A() = class end
+    type B() = inherit A()
+    type C() = inherit A()
+
+    let toName (x: obj * obj) =
+        match x with
+        | (:? A), :? A -> "AA"
+        | (:? B), :? B -> "BB"
+        | (:? C), :? C -> "CC"
+        | _ -> "other"
+
+    check "cnwcki4ce1" (toName (A(), A())) "AA"
+    check "cnwcki4ce2" (toName (A(), B())) "AA"
+    check "cnwcki4ce3" (toName (A(), C())) "AA"
+    check "cnwcki4ce4" (toName (B(), A())) "AA"
+    check "cnwcki4ce5" (toName (B(), B())) "AA"
+    check "cnwcki4ce6" (toName (B(), C())) "AA"
+    check "cnwcki4ce7" (toName (C(), A())) "AA"
+    check "cnwcki4ce8" (toName (C(), B())) "AA"
+    check "cnwcki4ce9" (toName (C(), C())) "AA"
+    check "cnwcki4ce10" (toName (obj(), obj())) "other"
+
+// Multi-column with failing 'when' and some sealed types
+module TestSubtypeMatching7 =
+    type A() = class end
+    type B() = inherit A()
+    type C() = inherit A()
+    [<Sealed>]
+    type D() = inherit A()
+    [<Sealed>]
+    type E() = inherit A()
+
+    let toName (x: obj * obj) =
+        match x with
+        | (:? A), :? A when false -> "AA"
+        | (:? B), :? B -> "BB"
+        | (:? C), :? C -> "CC"
+        | (:? D), :? D -> "DD"
+        | (:? E), :? E -> "EE"
+        | _ -> "other"
+
+    check "cnwcki4ce11" (toName (obj(), obj())) "other"
+    check "cnwcki4ce12" (toName (obj(), A())) "other"
+    check "cnwcki4ce13" (toName (obj(), B())) "other"
+    check "cnwcki4ce14" (toName (obj(), D())) "other"
+    check "cnwcki4ce15" (toName (obj(), C())) "other"
+    check "cnwcki4ce16" (toName (obj(), E())) "other"
+
+    check "cnwcki4ce17" (toName (A(), obj())) "other"
+    check "cnwcki4ce18" (toName (A(), A())) "other"
+    check "cnwcki4ce19" (toName (A(), B())) "other"
+    check "cnwcki4ce20" (toName (A(), C())) "other"
+    check "cnwcki4ce21" (toName (A(), D())) "other"
+    check "cnwcki4ce22" (toName (A(), E())) "other"
+
+    check "cnwcki4ce23" (toName (B(), obj())) "other"
+    check "cnwcki4ce24" (toName (B(), A())) "other"
+    check "cnwcki4ce25" (toName (B(), B())) "BB"
+    check "cnwcki4ce26" (toName (B(), D())) "other"
+    check "cnwcki4ce27" (toName (B(), C())) "other"
+    check "cnwcki4ce28" (toName (B(), E())) "other"
+
+    check "cnwcki4ce29" (toName (C(), obj())) "other"
+    check "cnwcki4ce30" (toName (C(), A())) "other"
+    check "cnwcki4ce31" (toName (C(), B())) "other"
+    check "cnwcki4ce32" (toName (C(), C())) "CC"
+    check "cnwcki4ce33" (toName (C(), D())) "other"
+    check "cnwcki4ce34" (toName (C(), E())) "other"
+
+    check "cnwcki4ce35" (toName (D(), obj())) "other"
+    check "cnwcki4ce36" (toName (D(), A())) "other"
+    check "cnwcki4ce37" (toName (D(), B())) "other"
+    check "cnwcki4ce38" (toName (D(), C())) "other"
+    check "cnwcki4ce39" (toName (D(), D())) "DD"
+    check "cnwcki4ce40" (toName (D(), E())) "other"
+
+    check "cnwcki4ce41" (toName (E(), obj())) "other"
+    check "cnwcki4ce42" (toName (E(), A())) "other"
+    check "cnwcki4ce43" (toName (E(), B())) "other"
+    check "cnwcki4ce44" (toName (E(), C())) "other"
+    check "cnwcki4ce45" (toName (E(), D())) "other"
+    check "cnwcki4ce46" (toName (E(), E())) "EE"
+
+// Moving the 'when false' clause around shouldn't matter
+module TestSubtypeMatching8 =
+    type A() = class end
+    type B() = inherit A()
+    type C() = inherit A()
+    [<Sealed>]
+    type D() = inherit A()
+    [<Sealed>]
+    type E() = inherit A()
+
+    let toName (x: obj * obj) =
+        match x with
+        | (:? B), :? B -> "BB"
+        | (:? A), :? A when false -> "AA"
+        | (:? C), :? C -> "CC"
+        | (:? D), :? D -> "DD"
+        | (:? E), :? E -> "EE"
+        | _ -> "other"
+
+    check "cnwcki4cf11" (toName (obj(), obj())) "other"
+    check "cnwcki4cf12" (toName (obj(), A())) "other"
+    check "cnwcki4cf13" (toName (obj(), B())) "other"
+    check "cnwcki4cf14" (toName (obj(), D())) "other"
+    check "cnwcki4cf15" (toName (obj(), C())) "other"
+    check "cnwcki4cf16" (toName (obj(), E())) "other"
+
+    check "cnwcki4cf17" (toName (A(), obj())) "other"
+    check "cnwcki4cf18" (toName (A(), A())) "other"
+    check "cnwcki4cf19" (toName (A(), B())) "other"
+    check "cnwcki4cf20" (toName (A(), C())) "other"
+    check "cnwcki4cf21" (toName (A(), D())) "other"
+    check "cnwcki4cf22" (toName (A(), E())) "other"
+
+    check "cnwcki4cf23" (toName (B(), obj())) "other"
+    check "cnwcki4cf24" (toName (B(), A())) "other"
+    check "cnwcki4cf25" (toName (B(), B())) "BB"
+    check "cnwcki4cf26" (toName (B(), D())) "other"
+    check "cnwcki4cf27" (toName (B(), C())) "other"
+    check "cnwcki4cf28" (toName (B(), E())) "other"
+
+    check "cnwcki4cf29" (toName (C(), obj())) "other"
+    check "cnwcki4cf30" (toName (C(), A())) "other"
+    check "cnwcki4cf31" (toName (C(), B())) "other"
+    check "cnwcki4cf32" (toName (C(), C())) "CC"
+    check "cnwcki4cf33" (toName (C(), D())) "other"
+    check "cnwcki4cf34" (toName (C(), E())) "other"
+
+    check "cnwcki4cf35" (toName (D(), obj())) "other"
+    check "cnwcki4cf36" (toName (D(), A())) "other"
+    check "cnwcki4cf37" (toName (D(), B())) "other"
+    check "cnwcki4cf38" (toName (D(), C())) "other"
+    check "cnwcki4cf39" (toName (D(), D())) "DD"
+    check "cnwcki4cf40" (toName (D(), E())) "other"
+
+    check "cnwcki4cf41" (toName (E(), obj())) "other"
+    check "cnwcki4cf42" (toName (E(), A())) "other"
+    check "cnwcki4cf43" (toName (E(), B())) "other"
+    check "cnwcki4cf44" (toName (E(), C())) "other"
+    check "cnwcki4cf45" (toName (E(), D())) "other"
+    check "cnwcki4cf46" (toName (E(), E())) "EE"
+
+// Multi-column in order from most specific to least specific
+module TestSubtypeMatching9 =
+    type A() = class end
+    type B() = inherit A()
+    type C() = inherit A()
+    [<Sealed>]
+    type D() = inherit A()
+    [<Sealed>]
+    type E() = inherit A()
+
+    let toName (x: obj * obj) =
+        match x with
+        | (:? E), :? E -> "EE"
+        | (:? D), :? D -> "DD"
+        | (:? C), :? C -> "CC"
+        | (:? B), :? B -> "BB"
+        | (:? A), :? A -> "AA"
+        | _ -> "other"
+
+    check "cnwcki4cg11" (toName (obj(), obj())) "other"
+    check "cnwcki4cg12" (toName (obj(), A())) "other"
+    check "cnwcki4cg13" (toName (obj(), B())) "other"
+    check "cnwcki4cg14" (toName (obj(), D())) "other"
+    check "cnwcki4cg15" (toName (obj(), C())) "other"
+    check "cnwcki4cg16" (toName (obj(), E())) "other"
+
+    check "cnwcki4cg17" (toName (A(), obj())) "other"
+    check "cnwcki4cg18" (toName (A(), A())) "AA"
+    check "cnwcki4cg19" (toName (A(), B())) "AA"
+    check "cnwcki4cg20" (toName (A(), C())) "AA"
+    check "cnwcki4cg21" (toName (A(), D())) "AA"
+    check "cnwcki4cg22" (toName (A(), E())) "AA"
+
+    check "cnwcki4cg23" (toName (B(), obj())) "other"
+    check "cnwcki4cg24" (toName (B(), A())) "AA"
+    check "cnwcki4cg25" (toName (B(), B())) "BB"
+    check "cnwcki4cg26" (toName (B(), D())) "AA"
+    check "cnwcki4cg27" (toName (B(), C())) "AA"
+    check "cnwcki4cg28" (toName (B(), E())) "AA"
+
+    check "cnwcki4cg29" (toName (C(), obj())) "other"
+    check "cnwcki4cg30" (toName (C(), A())) "AA"
+    check "cnwcki4cg31" (toName (C(), B())) "AA"
+    check "cnwcki4cg32" (toName (C(), C())) "CC"
+    check "cnwcki4cg33" (toName (C(), D())) "AA"
+    check "cnwcki4cg34" (toName (C(), E())) "AA"
+
+    check "cnwcki4cg35" (toName (D(), obj())) "other"
+    check "cnwcki4cg36" (toName (D(), A())) "AA"
+    check "cnwcki4cg37" (toName (D(), B())) "AA"
+    check "cnwcki4cg38" (toName (D(), C())) "AA"
+    check "cnwcki4cg39" (toName (D(), D())) "DD"
+    check "cnwcki4cg40" (toName (D(), E())) "AA"
+
+    check "cnwcki4cg41" (toName (E(), obj())) "other"
+    check "cnwcki4cg42" (toName (E(), A())) "AA"
+    check "cnwcki4cg43" (toName (E(), B())) "AA"
+    check "cnwcki4cg44" (toName (E(), C())) "AA"
+    check "cnwcki4cg45" (toName (E(), D())) "AA"
+    check "cnwcki4cg46" (toName (E(), E())) "EE"
+
+// Multi-column in order from most specific to least specific on second column
+module TestSubtypeMatching10 =
+    type A() = class end
+    type B() = inherit A()
+    type C() = inherit A()
+    [<Sealed>]
+    type D() = inherit A()
+    [<Sealed>]
+    type E() = inherit A()
+
+    let toName (x: obj * obj) =
+        match x with
+        | (:? A), :? E -> "AE"
+        | (:? B), :? D -> "BD"
+        | (:? C), :? C -> "CC"
+        | (:? D), :? B -> "DB"
+        | (:? E), :? A -> "EA"
+        | _ -> "other"
+
+    check "cnwcki4ch11" (toName (obj(), obj())) "other"
+    check "cnwcki4ch12" (toName (obj(), A())) "other"
+    check "cnwcki4ch13" (toName (obj(), B())) "other"
+    check "cnwcki4ch14" (toName (obj(), D())) "other"
+    check "cnwcki4ch15" (toName (obj(), C())) "other"
+    check "cnwcki4ch16" (toName (obj(), E())) "other"
+
+    check "cnwcki4ch17" (toName (A(), obj())) "other"
+    check "cnwcki4ch18" (toName (A(), A())) "other"
+    check "cnwcki4ch19" (toName (A(), B())) "other"
+    check "cnwcki4ch20" (toName (A(), C())) "other"
+    check "cnwcki4ch21" (toName (A(), D())) "other"
+    check "cnwcki4ch22" (toName (A(), E())) "AE"
+
+    check "cnwcki4ch23" (toName (B(), obj())) "other"
+    check "cnwcki4ch24" (toName (B(), A())) "other"
+    check "cnwcki4ch25" (toName (B(), B())) "other"
+    check "cnwcki4ch26" (toName (B(), D())) "BD"
+    check "cnwcki4ch27" (toName (B(), C())) "other"
+    check "cnwcki4ch28" (toName (B(), E())) "AE"
+
+    check "cnwcki4ch29" (toName (C(), obj())) "other"
+    check "cnwcki4ch30" (toName (C(), A())) "other"
+    check "cnwcki4ch31" (toName (C(), B())) "other"
+    check "cnwcki4ch32" (toName (C(), C())) "CC"
+    check "cnwcki4ch33" (toName (C(), D())) "other"
+    check "cnwcki4ch34" (toName (C(), E())) "AE"
+
+    check "cnwcki4ch35" (toName (D(), obj())) "other"
+    check "cnwcki4ch36" (toName (D(), A())) "other"
+    check "cnwcki4ch37" (toName (D(), B())) "DB"
+    check "cnwcki4ch38" (toName (D(), C())) "other"
+    check "cnwcki4ch39" (toName (D(), D())) "other"
+    check "cnwcki4ch40" (toName (D(), E())) "AE"
+
+    check "cnwcki4ch41" (toName (E(), obj())) "other"
+    check "cnwcki4ch42" (toName (E(), A())) "EA"
+    check "cnwcki4ch43" (toName (E(), B())) "EA"
+    check "cnwcki4ch44" (toName (E(), C())) "EA"
+    check "cnwcki4ch45" (toName (E(), D())) "EA"
+    check "cnwcki4ch46" (toName (E(), E())) "AE"
+
+// Add null to the matrix of multi-column (most specific to least specific on second column)
+module TestSubtypeMatching11 =
+    type A() = class end
+    type B() = inherit A()
+    type C() = inherit A()
+    [<Sealed>]
+    type D() = inherit A()
+    [<Sealed>]
+    type E() = inherit A()
+
+    let toName (x: obj * obj) =
+        match x with
+        | null, :? E -> "0E"
+        | (:? A), :? E -> "AE"
+        | (:? B), :? D -> "BD"
+        | (:? C), :? C -> "CC"
+        | (:? D), :? B -> "DB"
+        | (:? E), :? A -> "EA"
+        | (:? E), null -> "E0"
+        | _ -> "other"
+
+    check "cnwcki4ci11" (toName (null, obj())) "other"
+    check "cnwcki4ci12" (toName (null, A())) "other"
+    check "cnwcki4ci13" (toName (null, B())) "other"
+    check "cnwcki4ci14" (toName (null, D())) "other"
+    check "cnwcki4ci15" (toName (null, C())) "other"
+    check "cnwcki4ci16" (toName (null, E())) "0E"
+    check "cnwcki4ci17" (toName (null, null)) "other"
+
+    check "cnwcki4ci18" (toName (obj(), obj())) "other"
+    check "cnwcki4ci19" (toName (obj(), A())) "other"
+    check "cnwcki4ci20" (toName (obj(), B())) "other"
+    check "cnwcki4ci21" (toName (obj(), D())) "other"
+    check "cnwcki4ci22" (toName (obj(), C())) "other"
+    check "cnwcki4ci23" (toName (obj(), E())) "other"
+    check "cnwcki4ci24" (toName (obj(), null)) "other"
+
+    check "cnwcki4ci25" (toName (A(), obj())) "other"
+    check "cnwcki4ci26" (toName (A(), A())) "other"
+    check "cnwcki4ci27" (toName (A(), B())) "other"
+    check "cnwcki4ci28" (toName (A(), C())) "other"
+    check "cnwcki4ci29" (toName (A(), D())) "other"
+    check "cnwcki4ci30" (toName (A(), E())) "AE"
+    check "cnwcki4ci31" (toName (A(), null)) "other"
+
+    check "cnwcki4ci32" (toName (B(), obj())) "other"
+    check "cnwcki4ci33" (toName (B(), A())) "other"
+    check "cnwcki4ci34" (toName (B(), B())) "other"
+    check "cnwcki4ci35" (toName (B(), D())) "BD"
+    check "cnwcki4ci36" (toName (B(), C())) "other"
+    check "cnwcki4ci37" (toName (B(), E())) "AE"
+    check "cnwcki4ci38" (toName (B(), null)) "other"
+
+    check "cnwcki4ci39" (toName (C(), obj())) "other"
+    check "cnwcki4ci40" (toName (C(), A())) "other"
+    check "cnwcki4ci41" (toName (C(), B())) "other"
+    check "cnwcki4ci42" (toName (C(), C())) "CC"
+    check "cnwcki4ci43" (toName (C(), D())) "other"
+    check "cnwcki4ci44" (toName (C(), E())) "AE"
+    check "cnwcki4ci45" (toName (C(), null)) "other"
+
+    check "cnwcki4ci46" (toName (D(), obj())) "other"
+    check "cnwcki4ci47" (toName (D(), A())) "other"
+    check "cnwcki4ci48" (toName (D(), B())) "DB"
+    check "cnwcki4ci49" (toName (D(), C())) "other"
+    check "cnwcki4ci50" (toName (D(), D())) "other"
+    check "cnwcki4ci51" (toName (D(), E())) "AE"
+    check "cnwcki4ci52" (toName (D(), null)) "other"
+
+    check "cnwcki4ci53" (toName (E(), obj())) "other"
+    check "cnwcki4ci54" (toName (E(), A())) "EA"
+    check "cnwcki4ci55" (toName (E(), B())) "EA"
+    check "cnwcki4ci56" (toName (E(), C())) "EA"
+    check "cnwcki4ci57" (toName (E(), D())) "EA"
+    check "cnwcki4ci58" (toName (E(), E())) "AE"
+    check "cnwcki4ci59" (toName (E(), null)) "E0"
+
+// Test interface matching with 'null'
+module TestSubtypeMatching12 =
+    type IA = interface end
+    type IB = inherit IA
+    type IC = inherit IA
+    type A() =
+        interface IA
+    type B() =
+        interface IB
+    type C() =
+        interface IC
+
+    let toName (x: obj) =
+        match x with
+        | null -> "null"
+        | :? IA when false -> "IA fail"
+        | :? IB -> "IB"
+        | :? IC -> "IC"
+        | _ -> "other"
+
+    check "cnwcki4c0" (toName null) "null"
+    check "cnwcki4c1" (toName (A())) "other"
+    check "cnwcki4c2" (toName (B())) "IB"
+    check "cnwcki4c3" (toName (C())) "IC"
+    check "cnwcki4c4" (toName (obj())) "other"
+
+// Test interface matching with 'null when false'
+module TestSubtypeMatching13 =
+    type IA = interface end
+    type IB = inherit IA
+    type IC = inherit IA
+    type A() =
+        interface IA
+    type B() =
+        interface IB
+    type C() =
+        interface IC
+
+    let toName (x: obj) =
+        match x with
+        | null when false -> "null"
+        | :? IA -> "IA"
+        | :? IB -> "IB"
+        | :? IC -> "IC"
+        | _ -> "other"
+
+    check "cnwcki4d0" (toName null) "other"
+    check "cnwcki4d1" (toName (A())) "IA"
+    check "cnwcki4d2" (toName (B())) "IA"
+    check "cnwcki4d3" (toName (C())) "IA"
+    check "cnwcki4d4" (toName (obj())) "other"
+
+module TestStructMatching1 =
+
+    let toName (x: obj) =
+        match x with
+        | :? int when false -> "A" // note: "when false" used so type test succeeds but proceed to next type test
+        | :? IComparable -> "B"
+        | _ -> "other"
+
+    check "cnwcki4cewweq1" (toName 1) "B"
+    check "cnwcki4cewweq2" (toName "a") "B"
+    check "cnwcki4cewweq3" (toName System.DateTime.Now) "B"
+    check "cnwcki4cewweq4" (toName (obj())) "other"
+
+module TestStructMatching2 =
+
+    let toName (x: obj) =
+        match x with
+        | :? DateTime when false -> "A" // note: "when false" used so type test succeeds but proceed to next type test
+        | :? IComparable -> "B"
+        | _ -> "other"
+
+    check "cnwcki4cewweq1" (toName 1) "B"
+    check "cnwcki4cewweq2" (toName "a") "B"
+    check "cnwcki4cewweq3" (toName System.DateTime.Now) "B"
+    check "cnwcki4cewweq4" (toName (obj())) "other"
+
+module TestStructMatching3 =
+
+    let toName (x: obj) =
+        match x with
+        | :? IComparable when false -> "A" // note: "when false" used so type test succeeds but proceed to next type test
+        | :? DateTime -> "B"
+        | _ -> "other"
+
+    check "cnwcki4cewweq1" (toName 1) "other"
+    check "cnwcki4cewweq2" (toName "a") "other"
+    check "cnwcki4cewweq3" (toName System.DateTime.Now) "B"
+    check "cnwcki4cewweq4" (toName (obj())) "other"
+
+module TestStructMatching4 =
+
+    let toName (x: obj) =
+        match x with
+        | :? IFormattable when false -> "A" // note: "when false" used so type test succeeds but proceed to next type test
+        | :? DateTime -> "B"
+        | _ -> "other"
+
+    check "cnwcki4cewweq1" (toName 1) "other"
+    check "cnwcki4cewweq2" (toName "a") "other"
+    check "cnwcki4cewweq3" (toName System.DateTime.Now) "B"
+    check "cnwcki4cewweq4" (toName (obj())) "other"
+
+module TestStructMatching5 =
+
+    let toName (x: obj) =
+        match x with
+        | :? IFormattable when false -> "A" // note: "when false" used so type test succeeds but proceed to next type test
+        | :? Guid -> "B"
+        | _ -> "other"
+
+    check "cnwcki4cewweq11" (toName 1) "other"
+    check "cnwcki4cewweq22" (toName "a") "other"
+    check "cnwcki4cewweq33" (toName System.DateTime.Now) "other"
+    check "cnwcki4cewweq34" (toName (System.Guid())) "B"
+    check "cnwcki4cewweq45" (toName (obj())) "other"
+
+#if !NETCOREAPP
+module TestConverter =
+    open System
+
+    let fromConverter (f: Converter<'T1,'X>) = FSharp.Core.FSharpFunc.FromConverter f
+    let implicitConv (f: Converter<'T1,'X>) = FSharp.Core.FSharpFunc.op_Implicit f
+    let toConverter (f: 'T1 -> 'X) = FSharp.Core.FSharpFunc.ToConverter f
+    let toConverter2 (f: FSharpFunc<'T1, 'X>) = FSharp.Core.FSharpFunc.ToConverter f
+
+    test "cenwceoiwe1" ((id |> toConverter |> fromConverter) 6 = 6)
+    test "cenwceoiwe2" ((id |> toConverter |> fromConverter |> toConverter2 |> implicitConv) 6 = 6)
+#endif
+
+
+#if TESTS_AS_APP
+let RUN() = !failures
+#else
+let aa =
+  match !failures with 
+  | [] -> 
+      stdout.WriteLine "Test Passed"
+      System.IO.File.WriteAllText("test.ok","ok")
+      exit 0
+  | _ -> 
+      stdout.WriteLine "Test Failed"
+      exit 1
+#endif
+

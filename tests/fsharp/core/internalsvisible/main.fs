@@ -18,6 +18,24 @@ printf   "APrivateClass.InternalProperty  = %2d\n" LibraryCS.APrivateClass.Inter
 
 //printf "privateF  2 = %d\n"   (Library.M.privateF  2) // inaccessable
 
+module internal Repro1332 = 
+  let c = LibraryCS.Class1()
+  //c.Protected |> ignore
+  c.Internal |> ignore
+  c.ProtectedInternal |> ignore
+  LibraryCS.Class1.InternalStatic |> ignore
+  LibraryCS.Class1.ProtectedInternalStatic |> ignore
+
+type internal Class2() = 
+  inherit LibraryCS.Class1()
+  member c.M() = 
+      c.Internal |> ignore
+      c.ProtectedInternal |> ignore
+      c.Protected |> ignore
+      LibraryCS.Class1.InternalStatic |> ignore
+      LibraryCS.Class1.ProtectedInternalStatic |> ignore
+      LibraryCS.Class1.ProtectedStatic |> ignore
+
 
 (* Check that internalVisibleTo items can be used in internal items *)
 module internal Repro3737 =
@@ -28,3 +46,7 @@ module internal Repro3737 =
   let internalModuleNormalVal_uses_csInternalType (x : LibraryCS.AInternalClass) = 123
   let internalModuleNormalVal_uses_fsInternalType (x : Library.P.InternalClass)  = 123
   let internalModuleNormalVal_uses_fsInternalObject = Library.P.InternalObject
+
+// https://github.com/Microsoft/visualfsharp/issues/2401
+module ReproFS =
+  let c = new Repro.C( fun x -> "" )

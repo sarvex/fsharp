@@ -13,13 +13,9 @@ neg10.fs(16,32,16,34): typecheck error FS0887: The type 'C1' is not an interface
 
 neg10.fs(16,32,16,34): typecheck error FS1207: Interfaces inherited by other interfaces should be declared using 'inherit ...' instead of 'interface ...'
 
-neg10.fs(16,32,16,34): typecheck error FS0908: This type is not an interface type
-
 neg10.fs(17,28,17,30): typecheck error FS0887: The type 'C1' is not an interface type
 
-neg10.fs(17,28,17,30): typecheck error FS0908: This type is not an interface type
-
-neg10.fs(19,17,19,28): typecheck error FS0870: Structs cannot have an object constructor with no arguments. This is a restriction imposed on all CLI languages as structs automatically support a default constructor.
+neg10.fs(19,17,19,22): typecheck error FS0870: Structs cannot have an object constructor with no arguments. This is a restriction imposed on all CLI languages as structs automatically support a default constructor.
 
 neg10.fs(21,16,21,46): typecheck error FS0001: A generic construct requires that the type 'System.Enum' have a public default constructor
 
@@ -33,11 +29,11 @@ neg10.fs(25,16,25,53): typecheck error FS0001: This type parameter cannot be ins
 
 neg10.fs(54,17,54,20): typecheck error FS0060: Override implementations in augmentations are now deprecated. Override implementations should be given as part of the initial declaration of a type.
 
-neg10.fs(66,19,66,21): typecheck error FS0069: Interface implementations in augmentations are now deprecated. Interface implementations should be given on the initial declaration of a type.
+neg10.fs(66,19,66,21): typecheck error FS0069: Interface implementations should normally be given on the initial declaration of a type. Interface implementations in augmentations may lead to accessing static bindings before they are initialized, though only if the interface implementation is invoked during initialization of the static data, and in turn access the static data. You may remove this warning using #nowarn "69" if you have checked this is not the case.
 
-neg10.fs(77,27,77,34): typecheck error FS0896: Enumerations cannot have members
+neg10.fs(77,13,77,34): typecheck error FS0896: Enumerations cannot have members
 
-neg10.fs(84,20,84,29): typecheck error FS0896: Enumerations cannot have members
+neg10.fs(84,13,84,29): typecheck error FS0896: Enumerations cannot have members
 
 neg10.fs(90,23,90,41): typecheck error FS0907: Enumerations cannot have interface declarations
 
@@ -45,11 +41,11 @@ neg10.fs(99,23,99,29): typecheck error FS0907: Enumerations cannot have interfac
 
 neg10.fs(107,10,107,17): typecheck error FS0964: Type abbreviations cannot have augmentations
 
-neg10.fs(109,27,109,34): typecheck error FS0895: Type abbreviations cannot have members
+neg10.fs(109,13,109,34): typecheck error FS0895: Type abbreviations cannot have members
 
 neg10.fs(114,10,114,17): typecheck error FS0964: Type abbreviations cannot have augmentations
 
-neg10.fs(116,20,116,29): typecheck error FS0895: Type abbreviations cannot have members
+neg10.fs(116,13,116,29): typecheck error FS0895: Type abbreviations cannot have members
 
 neg10.fs(120,10,120,17): typecheck error FS0964: Type abbreviations cannot have augmentations
 
@@ -61,7 +57,10 @@ neg10.fs(131,23,131,29): typecheck error FS0906: Type abbreviations cannot have 
 
 neg10.fs(169,32,169,35): typecheck error FS0035: This construct is deprecated: This form of object expression is not used in F#. Use 'member this.MemberName ... = ...' to define member implementations in object expressions.
 
-neg10.fs(169,32,169,33): typecheck error FS0017: The member 'X : unit -> 'a' does not have the correct type to override any given virtual method
+neg10.fs(169,32,169,33): typecheck error FS3213: The member 'X: unit -> 'a' matches multiple overloads of the same method.
+Please restrict it to one of the following:
+   X: unit -> 'a
+   X: unit -> 'a.
 
 neg10.fs(169,19,169,26): typecheck error FS0783: At least one override did not correctly implement its corresponding abstract member
 
@@ -69,9 +68,9 @@ neg10.fs(174,9,175,20): typecheck error FS0951: Literal enumerations must have t
 
 neg10.fs(180,10,180,11): typecheck error FS0866: Interfaces cannot contain definitions of object constructors
 
-neg10.fs(193,39,193,46): typecheck error FS0767: The member 'MyX' does not correspond to any abstract or virtual method available to override or implement
+neg10.fs(193,39,193,46): typecheck error FS0767: The type Foo contains the member 'MyX' but it is not a virtual or abstract method that is available to override or implement.
 
-neg10.fs(193,41,193,44): typecheck error FS0017: The member 'MyX : unit -> int' does not have the correct type to override any given virtual method
+neg10.fs(193,41,193,44): typecheck error FS0017: The member 'MyX: unit -> int' does not have the correct type to override any given virtual method
 
 neg10.fs(193,20,193,23): typecheck error FS0783: At least one override did not correctly implement its corresponding abstract member
 
@@ -110,10 +109,10 @@ neg10.fs(222,10,222,12): typecheck error FS0044: This construct is deprecated. O
 neg10.fs(239,47,239,48): typecheck error FS0001: A type parameter is missing a constraint 'when 'b :> C'
 
 neg10.fs(239,47,239,48): typecheck error FS0193: Type constraint mismatch. The type 
-    'b    
+    ''b'    
 is not compatible with type
-    C    
-A type parameter is missing a constraint 'when 'b :> C'
+    'C'    
+
 
 neg10.fs(245,50,245,51): typecheck error FS0193: A type parameter is missing a constraint 'when 'b :> C'
 
@@ -147,7 +146,7 @@ neg10.fs(324,17,324,29): typecheck error FS1187: An indexer property must be giv
 
 neg10.fs(333,17,333,29): typecheck error FS1187: An indexer property must be given at least one argument
 
-neg10.fs(335,17,335,39): typecheck error FS0501: The member or object constructor 'X' takes 2 argument(s) but is here given 3. The required signature is 'member T3.X : a:int -> int * int with set'.
+neg10.fs(335,17,335,39): typecheck error FS0501: The member or object constructor 'X' takes 2 argument(s) but is here given 3. The required signature is 'member T3.X: a: int -> int * int with set'.
 
 neg10.fs(345,23,345,24): typecheck error FS0001: The type 'SqlDecimal' does not support a conversion to the type 'float'
 
@@ -199,9 +198,9 @@ neg10.fs(407,27,407,42): typecheck error FS0093: The type 'C' does not support a
 
 neg10.fs(408,27,408,42): typecheck error FS0093: The type 'C' does not support a conversion to the type 'uint64'
 
-neg10.fs(409,26,409,41): typecheck error FS0093: The type 'C' does not support a conversion to the type 'int64'
+neg10.fs(410,28,410,43): typecheck error FS3391: This expression uses the implicit conversion 'System.Decimal.op_Implicit(value: int) : decimal' to convert type 'int' to type 'decimal'. See https://aka.ms/fsharp-implicit-convs. This warning may be disabled using '#nowarn "3391".
 
-neg10.fs(410,28,410,43): typecheck error FS0093: The type 'C' does not support a conversion to the type 'decimal'
+neg10.fs(410,28,410,43): typecheck error FS3391: This expression uses the implicit conversion 'System.Decimal.op_Implicit(value: int) : decimal' to convert type 'int' to type 'decimal'. See https://aka.ms/fsharp-implicit-convs. This warning may be disabled using '#nowarn "3391".
 
 neg10.fs(422,24,422,25): typecheck error FS0001: The type 'C' does not support a conversion to the type 'float'
 
@@ -246,5 +245,3 @@ neg10.fs(455,25,455,26): typecheck error FS0001: The type 'C' does not support a
 neg10.fs(456,24,456,25): typecheck error FS0001: The type 'C' does not support a conversion to the type 'int64'
 
 neg10.fs(457,26,457,27): typecheck error FS0001: The type 'C' does not support a conversion to the type 'decimal'
-
-neg10.fsi(1,1,1,81): typecheck error FS0240: The signature file 'Neg10' does not have a corresponding implementation file. If an implementation file exists then check the 'module' and 'namespace' declarations in the signature and implementation files match.

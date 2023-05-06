@@ -7,13 +7,13 @@ neg61.fs(18,13,18,22): typecheck error FS3097: Incorrect syntax for 'groupJoin'.
 
 neg61.fs(22,13,22,16): typecheck error FS3145: This is not a known query operator. Query operators are identifiers such as 'select', 'where', 'sortBy', 'thenBy', 'groupBy', 'groupValBy', 'join', 'groupJoin', 'sumBy' and 'averageBy', defined using corresponding methods on the 'QueryBuilder' type.
 
-neg61.fs(22,13,22,16): typecheck error FS0039: The value or constructor 'zip' is not defined
+neg61.fs(22,13,22,16): typecheck error FS0039: The value or constructor 'zip' is not defined.
 
 neg61.fs(26,13,26,19): typecheck error FS3099: 'select' is used with an incorrect number of arguments. This is a custom operation in this query or computation expression. Expected 1 argument(s), but given 0.
 
 neg61.fs(30,13,30,16): typecheck error FS3145: This is not a known query operator. Query operators are identifiers such as 'select', 'where', 'sortBy', 'thenBy', 'groupBy', 'groupValBy', 'join', 'groupJoin', 'sumBy' and 'averageBy', defined using corresponding methods on the 'QueryBuilder' type.
 
-neg61.fs(30,13,30,16): typecheck error FS0039: The value or constructor 'zip' is not defined
+neg61.fs(30,13,30,16): typecheck error FS0039: The value or constructor 'zip' is not defined.
 
 neg61.fs(34,13,34,22): typecheck error FS3096: 'groupJoin' must be followed by a variable name. Usage: groupJoin var in collection on (outerKey = innerKey) into group. Note that parentheses are required after 'on'.
 
@@ -41,23 +41,23 @@ neg61.fs(52,16,52,25): typecheck error FS3095: 'groupJoin' is not used correctly
 
 neg61.fs(56,13,56,15): typecheck error FS3145: This is not a known query operator. Query operators are identifiers such as 'select', 'where', 'sortBy', 'thenBy', 'groupBy', 'groupValBy', 'join', 'groupJoin', 'sumBy' and 'averageBy', defined using corresponding methods on the 'QueryBuilder' type.
 
-neg61.fs(56,16,56,19): typecheck error FS0039: The value or constructor 'zip' is not defined
+neg61.fs(56,16,56,19): typecheck error FS0039: The value or constructor 'zip' is not defined.
 
 neg61.fs(60,13,60,21): typecheck error FS3145: This is not a known query operator. Query operators are identifiers such as 'select', 'where', 'sortBy', 'thenBy', 'groupBy', 'groupValBy', 'join', 'groupJoin', 'sumBy' and 'averageBy', defined using corresponding methods on the 'QueryBuilder' type.
 
-neg61.fs(60,13,60,21): typecheck error FS0193: This expression is a function value, i.e. is missing arguments. Its type is  ^a ->  ^a.
+neg61.fs(60,13,60,21): typecheck error FS0193: This expression is a function value, i.e. is missing arguments. Its type is ^a -> ^a.
 
 neg61.fs(64,13,64,20): typecheck error FS3145: This is not a known query operator. Query operators are identifiers such as 'select', 'where', 'sortBy', 'thenBy', 'groupBy', 'groupValBy', 'join', 'groupJoin', 'sumBy' and 'averageBy', defined using corresponding methods on the 'QueryBuilder' type.
 
 neg61.fs(69,13,69,23): typecheck error FS3140: 'while' expressions may not be used in queries
 
-neg61.fs(74,13,74,32): typecheck error FS3139: In queries, use the form 'for x in n .. m do ...' for ranging over integers
+neg61.fs(74,13,74,16): typecheck error FS3139: In queries, use the form 'for x in n .. m do ...' for ranging over integers
 
 neg61.fs(79,13,79,16): typecheck error FS3146: 'try/with' expressions may not be used in queries
 
 neg61.fs(86,13,86,16): typecheck error FS3141: 'try/finally' expressions may not be used in queries
 
-neg61.fs(92,21,92,70): typecheck error FS3142: 'use' expressions may not be used in queries
+neg61.fs(92,13,92,70): typecheck error FS3142: 'use' expressions may not be used in queries
 
 neg61.fs(97,13,97,33): typecheck error FS3143: 'let!', 'use!' and 'do!' expressions may not be used in queries
 
@@ -83,17 +83,13 @@ neg61.fs(156,21,156,22): typecheck error FS3147: This 'let' definition may not b
 
 neg61.fs(171,13,171,18): typecheck error FS3099: 'sumBy' is used with an incorrect number of arguments. This is a custom operation in this query or computation expression. Expected 1 argument(s), but given 0.
 
-neg61.fs(174,22,174,23): typecheck error FS0041: No overloads match for method 'Source'. The available overloads are shown below (or in the Error List window).
-neg61.fs(174,22,174,23): typecheck error FS0041: Possible overload: 'member Linq.QueryBuilder.Source : source:System.Linq.IQueryable<'T> -> Linq.QuerySource<'T,'Q>'. Type constraint mismatch. The type 
-    int    
-is not compatible with type
-    System.Linq.IQueryable<'a>    
-The type 'int' is not compatible with the type 'System.Linq.IQueryable<'a>'.
-neg61.fs(174,22,174,23): typecheck error FS0041: Possible overload: 'member Linq.QueryBuilder.Source : source:System.Collections.Generic.IEnumerable<'T> -> Linq.QuerySource<'T,System.Collections.IEnumerable>'. Type constraint mismatch. The type 
-    int    
-is not compatible with type
-    System.Collections.Generic.IEnumerable<'a>    
-The type 'int' is not compatible with the type 'System.Collections.Generic.IEnumerable<'a>'.
+neg61.fs(174,22,174,23): typecheck error FS0041: No overloads match for method 'Source'.
+
+Known type of argument: int
+
+Available overloads:
+ - member Linq.QueryBuilder.Source: source: System.Collections.Generic.IEnumerable<'T> -> Linq.QuerySource<'T,System.Collections.IEnumerable> // Argument 'source' doesn't match
+ - member Linq.QueryBuilder.Source: source: System.Linq.IQueryable<'T> -> Linq.QuerySource<'T,'Q> // Argument 'source' doesn't match
 
 neg61.fs(180,19,180,31): typecheck error FS3153: Arguments to query operators may require parentheses, e.g. 'where (x > y)' or 'groupBy (x.Length / 10)'
 

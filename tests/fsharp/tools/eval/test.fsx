@@ -1,8 +1,5 @@
 #light
 
-#r @"System.Core.dll"
-#r @"System.Data.Linq.dll"
-
 #nowarn "57"
 
 open Microsoft.FSharp.Quotations
@@ -663,22 +660,29 @@ module QuotationEvaluation =
             let env = Map.add v (vP |> asExpr) env 
             let tyargs = [| v.Type; body.Type |]
             let bodyP = ConvExpr env body
-            let convType = typedefof<System.Converter<obj,obj>>.MakeGenericType tyargs
+            let lambdaTy, tyargs =
+                if bodyP.Type = typeof<System.Void> then
+                    let tyargs = [| vP.Type |]
+                    typedefof<Action<_>>, tyargs
+                else
+                    let tyargs = [| vP.Type; bodyP.Type |]
+                    typedefof<Func<_, _>>, tyargs
+            let convType = lambdaTy.MakeGenericType tyargs
             let convDelegate = Expression.Lambda(convType, bodyP, [| vP |]) |> asExpr
-            Expression.Call(typeof<FuncConvert>,"ToFSharpFunc",tyargs,[| convDelegate |]) |> asExpr
-    
+            Expression.Call(typeof<FuncConvert>, "ToFSharpFunc", tyargs, [| convDelegate |]) |> asExpr
+
         | Patterns.WhileLoop(gd,b) -> 
             let gdP = ConvExpr env <@@ (fun () -> (%%gd:bool)) @@>
             let bP = ConvExpr env <@@ (fun () -> (%%b:unit)) @@>
             let minfo = WhileMethod.GetGenericMethodDefinition().MakeGenericMethod [| typeof<unit> |]
             Expression.Call(minfo,[| gdP; bP |]) |> asExpr
-        
+
         | Patterns.TryFinally(e,h) -> 
             let eP = ConvExpr env (Expr.Lambda(new Var("unitVar",typeof<unit>), e))
             let hP = ConvExpr env <@@ (fun () -> (%%h:unit)) @@>
             let minfo = TryFinallyMethod.GetGenericMethodDefinition().MakeGenericMethod [| e.Type |]
             Expression.Call(minfo,[| eP; hP |]) |> asExpr
-        
+
         | Patterns.TryWith(e,vf,filter,vh,handler) -> 
             let eP = ConvExpr env (Expr.Lambda(new Var("unitVar",typeof<unit>), e))
             let filterP = ConvExpr env (Expr.Lambda(vf,filter))
@@ -1189,35 +1193,35 @@ module EvaluationTests =
 
     module InlinedOperationsStillDynamicallyAvailableTests = 
 
-        checkEval "vroievr093" (<@ LanguagePrimitives.GenericZero<sbyte> @>)  0y
-        checkEval "vroievr091" (<@ LanguagePrimitives.GenericZero<int16> @>)  0s
-        checkEval "vroievr091" (<@ LanguagePrimitives.GenericZero<int32> @>)  0
-        checkEval "vroievr091" (<@ LanguagePrimitives.GenericZero<int64> @>)  0L
-        checkEval "vroievr091" (<@ LanguagePrimitives.GenericZero<nativeint> @>)  0n
-        checkEval "vroievr093" (<@ LanguagePrimitives.GenericZero<byte> @>)  0uy
-        checkEval "vroievr091" (<@ LanguagePrimitives.GenericZero<uint16> @>)  0us
-        checkEval "vroievr091" (<@ LanguagePrimitives.GenericZero<uint32> @>)  0u
-        checkEval "vroievr091" (<@ LanguagePrimitives.GenericZero<uint64> @>)  0UL
-        checkEval "vroievr091" (<@ LanguagePrimitives.GenericZero<unativeint> @>)  0un
-        checkEval "vroievr091" (<@ LanguagePrimitives.GenericZero<float> @>)  0.0
-        checkEval "vroievr091" (<@ LanguagePrimitives.GenericZero<float32> @>)  0.0f
-        checkEval "vroievr092" (<@ LanguagePrimitives.GenericZero<decimal> @>)  0M
+        checkEval "vroievr091a" (<@ LanguagePrimitives.GenericZero<char> @>)  '\000'
+        checkEval "vroievr091b" (<@ LanguagePrimitives.GenericZero<sbyte> @>)  0y
+        checkEval "vroievr091c" (<@ LanguagePrimitives.GenericZero<int16> @>)  0s
+        checkEval "vroievr091d" (<@ LanguagePrimitives.GenericZero<int32> @>)  0
+        checkEval "vroievr091e" (<@ LanguagePrimitives.GenericZero<int64> @>)  0L
+        checkEval "vroievr091f" (<@ LanguagePrimitives.GenericZero<nativeint> @>)  0n
+        checkEval "vroievr091g" (<@ LanguagePrimitives.GenericZero<byte> @>)  0uy
+        checkEval "vroievr091h" (<@ LanguagePrimitives.GenericZero<uint16> @>)  0us
+        checkEval "vroievr091i" (<@ LanguagePrimitives.GenericZero<uint32> @>)  0u
+        checkEval "vroievr091j" (<@ LanguagePrimitives.GenericZero<uint64> @>)  0UL
+        checkEval "vroievr091k" (<@ LanguagePrimitives.GenericZero<unativeint> @>)  0un
+        checkEval "vroievr091l" (<@ LanguagePrimitives.GenericZero<float> @>)  0.0
+        checkEval "vroievr091m" (<@ LanguagePrimitives.GenericZero<float32> @>)  0.0f
+        checkEval "vroievr091n" (<@ LanguagePrimitives.GenericZero<decimal> @>)  0M
 
-
-
-        checkEval "vroievr093" (<@ LanguagePrimitives.GenericOne<sbyte> @>)  1y
-        checkEval "vroievr191" (<@ LanguagePrimitives.GenericOne<int16> @>)  1s
-        checkEval "vroievr191" (<@ LanguagePrimitives.GenericOne<int32> @>)  1
-        checkEval "vroievr191" (<@ LanguagePrimitives.GenericOne<int64> @>)  1L
-        checkEval "vroievr191" (<@ LanguagePrimitives.GenericOne<nativeint> @>)  1n
-        checkEval "vroievr193" (<@ LanguagePrimitives.GenericOne<byte> @>)  1uy
-        checkEval "vroievr191" (<@ LanguagePrimitives.GenericOne<uint16> @>)  1us
-        checkEval "vroievr191" (<@ LanguagePrimitives.GenericOne<uint32> @>)  1u
-        checkEval "vroievr191" (<@ LanguagePrimitives.GenericOne<uint64> @>)  1UL
-        checkEval "vroievr191" (<@ LanguagePrimitives.GenericOne<unativeint> @>)  1un
-        checkEval "vroievr191" (<@ LanguagePrimitives.GenericOne<float> @>)  1.0
-        checkEval "vroievr191" (<@ LanguagePrimitives.GenericOne<float32> @>)  1.0f
-        checkEval "vroievr192" (<@ LanguagePrimitives.GenericOne<decimal> @>)  1M
+        checkEval "vroievr092a" (<@ LanguagePrimitives.GenericOne<char> @>)  '\001'
+        checkEval "vroievr092b" (<@ LanguagePrimitives.GenericOne<sbyte> @>)  1y
+        checkEval "vroievr092c" (<@ LanguagePrimitives.GenericOne<int16> @>)  1s
+        checkEval "vroievr092d" (<@ LanguagePrimitives.GenericOne<int32> @>)  1
+        checkEval "vroievr092e" (<@ LanguagePrimitives.GenericOne<int64> @>)  1L
+        checkEval "vroievr092f" (<@ LanguagePrimitives.GenericOne<nativeint> @>)  1n
+        checkEval "vroievr092g" (<@ LanguagePrimitives.GenericOne<byte> @>)  1uy
+        checkEval "vroievr092h" (<@ LanguagePrimitives.GenericOne<uint16> @>)  1us
+        checkEval "vroievr092i" (<@ LanguagePrimitives.GenericOne<uint32> @>)  1u
+        checkEval "vroievr092j" (<@ LanguagePrimitives.GenericOne<uint64> @>)  1UL
+        checkEval "vroievr092k" (<@ LanguagePrimitives.GenericOne<unativeint> @>)  1un
+        checkEval "vroievr092l" (<@ LanguagePrimitives.GenericOne<float> @>)  1.0
+        checkEval "vroievr092m" (<@ LanguagePrimitives.GenericOne<float32> @>)  1.0f
+        checkEval "vroievr092n" (<@ LanguagePrimitives.GenericOne<decimal> @>)  1M
 
         check "vroievr0971" (LanguagePrimitives.AdditionDynamic 3y 4y) 7y
         check "vroievr0972" (LanguagePrimitives.AdditionDynamic 3s 4s) 7s
@@ -1232,6 +1236,7 @@ module EvaluationTests =
         check "vroievr097q" (LanguagePrimitives.AdditionDynamic 3.0 4.0) 7.0
         check "vroievr097w" (LanguagePrimitives.AdditionDynamic 3.0f 4.0f) 7.0f
         check "vroievr097e" (LanguagePrimitives.AdditionDynamic 3.0M 4.0M) 7.0M
+        check "vroievr097n" (LanguagePrimitives.AdditionDynamic '3' '\004') '7'
 
         check "vroievr097r" (LanguagePrimitives.CheckedAdditionDynamic 3y 4y) 7y
         check "vroievr097t" (LanguagePrimitives.CheckedAdditionDynamic 3s 4s) 7s
@@ -1246,6 +1251,37 @@ module EvaluationTests =
         check "vroievr097f" (LanguagePrimitives.CheckedAdditionDynamic 3.0 4.0) 7.0
         check "vroievr097g" (LanguagePrimitives.CheckedAdditionDynamic 3.0f 4.0f) 7.0f
         check "vroievr097h" (LanguagePrimitives.CheckedAdditionDynamic 3.0M 4.0M) 7.0M
+        check "vroievr097u" (LanguagePrimitives.CheckedAdditionDynamic '3' '\004') '7'
+        
+        check "vroievr0981" (LanguagePrimitives.SubtractionDynamic 7y 4y) 3y
+        check "vroievr0982" (LanguagePrimitives.SubtractionDynamic 7s 4s) 3s
+        check "vroievr0983" (LanguagePrimitives.SubtractionDynamic 7 4) 3
+        check "vroievr0984" (LanguagePrimitives.SubtractionDynamic 7L 4L) 3L
+        check "vroievr0985" (LanguagePrimitives.SubtractionDynamic 7n 4n) 3n
+        check "vroievr0986" (LanguagePrimitives.SubtractionDynamic 7uy 4uy) 3uy
+        check "vroievr0987" (LanguagePrimitives.SubtractionDynamic 7us 4us) 3us
+        check "vroievr0988" (LanguagePrimitives.SubtractionDynamic 7u 4u) 3u
+        check "vroievr0989" (LanguagePrimitives.SubtractionDynamic 7UL 4UL) 3UL
+        check "vroievr0980" (LanguagePrimitives.SubtractionDynamic 7un 4un) 3un
+        check "vroievr098q" (LanguagePrimitives.SubtractionDynamic 7.0 4.0) 3.0
+        check "vroievr098w" (LanguagePrimitives.SubtractionDynamic 7.0f 4.0f) 3.0f
+        check "vroievr098e" (LanguagePrimitives.SubtractionDynamic 7.0M 4.0M) 3.0M
+        check "vroievr098n" (LanguagePrimitives.SubtractionDynamic '7' '\004') '3'
+
+        check "vroievr098r" (LanguagePrimitives.CheckedSubtractionDynamic 7y 4y) 3y
+        check "vroievr098t" (LanguagePrimitives.CheckedSubtractionDynamic 7s 4s) 3s
+        check "vroievr098y" (LanguagePrimitives.CheckedSubtractionDynamic 7 4) 3
+        check "vroievr098u" (LanguagePrimitives.CheckedSubtractionDynamic 7L 4L) 3L
+        check "vroievr098i" (LanguagePrimitives.CheckedSubtractionDynamic 7n 4n) 3n
+        check "vroievr098o" (LanguagePrimitives.CheckedSubtractionDynamic 7uy 4uy) 3uy
+        check "vroievr098p" (LanguagePrimitives.CheckedSubtractionDynamic 7us 4us) 3us
+        check "vroievr098a" (LanguagePrimitives.CheckedSubtractionDynamic 7u 4u) 3u
+        check "vroievr098s" (LanguagePrimitives.CheckedSubtractionDynamic 7UL 4UL) 3UL
+        check "vroievr098d" (LanguagePrimitives.CheckedSubtractionDynamic 7un 4un) 3un
+        check "vroievr098f" (LanguagePrimitives.CheckedSubtractionDynamic 7.0 4.0) 3.0
+        check "vroievr098g" (LanguagePrimitives.CheckedSubtractionDynamic 7.0f 4.0f) 3.0f
+        check "vroievr098h" (LanguagePrimitives.CheckedSubtractionDynamic 7.0M 4.0M) 3.0M
+        check "vroievr098u" (LanguagePrimitives.CheckedSubtractionDynamic '7' '\004') '3'
 
         check "vroievr0912q" (LanguagePrimitives.MultiplyDynamic 3y 4y) 12y
         check "vroievr0912w" (LanguagePrimitives.MultiplyDynamic 3s 4s) 12s
@@ -1260,7 +1296,6 @@ module EvaluationTests =
         check "vroievr0912a" (LanguagePrimitives.MultiplyDynamic 3.0 4.0) 12.0
         check "vroievr0912s" (LanguagePrimitives.MultiplyDynamic 3.0f 4.0f) 12.0f
         check "vroievr0912d" (LanguagePrimitives.MultiplyDynamic 3.0M 4.0M) 12.0M
-
 
         check "vroievr0912f" (LanguagePrimitives.CheckedMultiplyDynamic 3y 4y) 12y
         check "vroievr0912g" (LanguagePrimitives.CheckedMultiplyDynamic 3s 4s) 12s
@@ -1473,6 +1508,268 @@ module EvaluationTests =
 
         Eval <@ Array.average [| 0.0 .. 1.0 .. 10000.0 |] @> 
 
+    module GenericInlinedOperationsStillDynamicallyAvailableTests = 
+
+        let inline test1 (x: 'T) = 
+            checkEval ("vroievr093-(" + typeof<'T>.ToString() + ")") (<@ LanguagePrimitives.GenericZero<_> @>)  x
+
+        test1 0s
+        test1 0
+        test1 0L
+        test1 0n
+        test1 0uy
+        test1 0us 
+        test1 0u
+        test1 0UL
+        test1 0un 
+        test1 0.0
+        test1 0.0f
+        test1 0M
+
+        let inline test2 (x: 'T) = 
+           checkEval ("vroievr095f3-(" + typeof<'T>.ToString() + ")") (<@ LanguagePrimitives.GenericOne<_> @>)  x
+
+        test2 1s
+        test2 1
+        test2 1L
+        test2 1n
+        test2 1uy
+        test2 1us 
+        test2 1u
+        test2 1UL
+        test2 1un 
+        test2 1.0
+        test2 1.0f
+        test2 1M
+
+        let inline test3 (x: 'T) y = 
+           checkEval ("vroievr096cfqw-(" + typeof<'T>.ToString() + ")") (<@ x + y @>)  (x + y)
+
+        test3 3s 4s
+        test3 3L 4L
+
+        let inline test4 (x: 'T) =
+           checkEval ("vroievrgerwwge41-(" + typeof<'T>.ToString() + ")") (<@ abs x @>)  (abs x)
+           checkEval ("vroievrgerwwge42-(" + typeof<'T>.ToString() + ")") (<@ sin x @>)  (sin x)
+           checkEval ("vroievrgerwwge43-(" + typeof<'T>.ToString() + ")") (<@ cos x @>)  (cos x)
+           checkEval ("vroievrgerwwge44-(" + typeof<'T>.ToString() + ")") (<@ tan x @>)  (tan x)
+           checkEval ("vroievrgerwwge45-(" + typeof<'T>.ToString() + ")") (<@ sinh x @>)  (sinh x)
+           checkEval ("vroievrgerwwge46-(" + typeof<'T>.ToString() + ")") (<@ cosh x @>)  (cosh x)
+           checkEval ("vroievrgerwwge47-(" + typeof<'T>.ToString() + ")") (<@ ceil x @>)  (ceil x)
+           checkEval ("vroievrgerwwge49-(" + typeof<'T>.ToString() + ")") (<@ tanh x @>)  (tanh x)
+           checkEval ("vroievrgerwwge48-(" + typeof<'T>.ToString() + ")") (<@ floor x @>)  (floor x)
+           checkEval ("vroievrgerwwge48-(" + typeof<'T>.ToString() + ")") (<@ truncate x @>)  (truncate x)
+           checkEval ("vroievrgerwwge48-(" + typeof<'T>.ToString() + ")") (<@ round x @>)  (round x)
+           checkEval ("vroievrgerwwge48-(" + typeof<'T>.ToString() + ")") (<@ log (abs x) @>)  (log (abs x))
+           checkEval ("vroievrgerwwge48-(" + typeof<'T>.ToString() + ")") (<@ sqrt (abs x) @>)  (sqrt (abs x))
+           checkEval ("vroievrgerwwge48-(" + typeof<'T>.ToString() + ")") (<@ log10 (abs x) @>)  (log10 (abs x))
+           checkEval ("vroievrgerwwge48-(" + typeof<'T>.ToString() + ")") (<@ exp (abs x) @>)  (exp (abs x))
+
+        test4 -1.1
+        test4 -1.1f
+
+        let inline test5 (x: 'T) y = 
+           checkEval ("vrbrer096cfqw-(" + typeof<'T>.ToString() + ")") (<@ (fun x2 y2 -> x2 + y2) x y @>) (x + y)
+
+        test5 3s 4s
+        test5 3L 4L
+
+        let iarr = [| 0..1000 |]
+        let ilist = [ 0..1000 ]
+
+        let farr = [| 0.0 .. 1.0 .. 100.0 |]
+        let flist = [ 0.0 .. 1.0 .. 100.0 ]
+
+        Array.average farr
+
+        checkEval "vrewoinrv091" (<@ farr.[0] @>) 0.0
+        checkEval "vrewoinrv092" (<@ flist.[0] @>) 0.0
+        checkEval "vrewoinrv093" (<@ iarr.[0] @>) 0
+        checkEval "vrewoinrv094" (<@ ilist.[0] @>) 0
+
+        checkEval "vrewoinrv095" (<@ farr.[0] <- 0.0 @>) ()
+        checkEval "vrewoinrv096" (<@ iarr.[0] <- 0 @>) ()
+
+        checkEval "vrewoinrv097" (<@ farr.[0] <- 1.0 @>) ()
+        checkEval "vrewoinrv098" (<@ iarr.[0] <- 1 @>) ()
+
+        checkEval "vrewoinrv099" (<@ farr.[0] @>) 1.0
+        checkEval "vrewoinrv09q" (<@ iarr.[0] @>) 1
+
+        checkEval "vrewoinrv09w" (<@ farr.[0] <- 0.0 @>) ()
+        checkEval "vrewoinrv09e" (<@ iarr.[0] <- 0 @>) ()
+
+
+        checkEval "vrewoinrv09r" (<@ Array.average farr @>) (Array.average farr)
+        checkEval "vrewoinrv09t" (<@ Array.sum farr @>) (Array.sum farr)
+        checkEval "vrewoinrv09y" (<@ Seq.sum farr @>) (Seq.sum farr)
+        checkEval "vrewoinrv09u" (<@ Seq.average farr @>) (Seq.average farr) 
+        checkEval "vrewoinrv09i" (<@ Seq.average flist @>) (Seq.average flist)
+        checkEval "vrewoinrv09o" (<@ Seq.averageBy (fun x -> x) farr @> ) (Seq.averageBy (fun x -> x) farr )
+        checkEval "vrewoinrv09p" (<@ Seq.averageBy (fun x -> x) flist @>) (Seq.averageBy (fun x -> x) flist )
+        checkEval "vrewoinrv09a" (<@ Seq.averageBy float ilist @>) (Seq.averageBy float ilist)
+        checkEval "vrewoinrv09s" (<@ List.sum flist @>) (List.sum flist)
+        checkEval "vrewoinrv09d" (<@ List.average flist @>) (List.average flist)
+        checkEval "vrewoinrv09f" (<@ List.averageBy float ilist @>) (List.averageBy float ilist)
+
+        checkEval "vrewoinrv09g1" (<@ compare 0 0 = 0 @>) true
+        checkEval "vrewoinrv09g2" (<@ compare 0 1 < 0 @>) true
+        checkEval "vrewoinrv09g3" (<@ compare 1 0 > 0 @>) true
+        checkEval "vrewoinrv09g4" (<@ 0 < 1 @>) true
+        checkEval "vrewoinrv09g5" (<@ 0 <= 1 @>) true
+        checkEval "vrewoinrv09g6" (<@ 1 <= 1 @>) true
+        checkEval "vrewoinrv09g7" (<@ 2 <= 1 @>) false
+        checkEval "vrewoinrv09g8" (<@ 0 > 1 @>) false
+        checkEval "vrewoinrv09g9" (<@ 0 >= 1 @>) false
+        checkEval "vrewoinrv09g0" (<@ 1 >= 1 @>) true
+        checkEval "vrewoinrv09gQ" (<@ 2 >= 1 @>) true
+
+        checkEval "vrewoinrv09gw" (<@ compare 0.0 0.0 = 0 @>) true
+        checkEval "vrewoinrv09ge" (<@ compare 0.0 1.0 < 0 @>) true
+        checkEval "vrewoinrv09gr" (<@ compare 1.0 0.0 > 0 @>) true
+        checkEval "vrewoinrv09gt" (<@ 0.0 < 1.0 @>) true
+        checkEval "vrewoinrv09gy" (<@ 0.0 <= 1.0 @>) true
+        checkEval "vrewoinrv09gu" (<@ 1.0 <= 1.0 @>) true
+        checkEval "vrewoinrv09gi" (<@ 2.0 <= 1.0 @>) false
+        checkEval "vrewoinrv09go" (<@ 0.0 > 1.0 @>) false
+        checkEval "vrewoinrv09gp" (<@ 0.0 >= 1.0 @>) false
+        checkEval "vrewoinrv09ga" (<@ 1.0 >= 1.0 @>) true
+        checkEval "vrewoinrv09gs" (<@ 2.0 >= 1.0 @>) true
+
+        checkEval "vrewoinrv09gd" (<@ compare 0.0f 0.0f = 0 @>) true
+        checkEval "vrewoinrv09gf" (<@ compare 0.0f 1.0f < 0 @>) true
+        checkEval "vrewoinrv09gg" (<@ compare 1.0f 0.0f > 0 @>) true
+        checkEval "vrewoinrv09gh" (<@ 0.0f < 1.0f @>) true
+        checkEval "vrewoinrv09gk" (<@ 0.0f <= 1.0f @>) true
+        checkEval "vrewoinrv09gl" (<@ 1.0f <= 1.0f @>) true
+        checkEval "vrewoinrv09gz" (<@ 2.0f <= 1.0f @>) false
+        checkEval "vrewoinrv09gx" (<@ 0.0f > 1.0f @>) false
+        checkEval "vrewoinrv09gc" (<@ 0.0f >= 1.0f @>) false
+        checkEval "vrewoinrv09gv" (<@ 1.0f >= 1.0f @>) true
+        checkEval "vrewoinrv09gb" (<@ 2.0f >= 1.0f @>) true
+
+        checkEval "vrewoinrv09gn" (<@ compare 0L 0L = 0 @>) true
+        checkEval "vrewoinrv09gm" (<@ compare 0L 1L < 0 @>) true
+        checkEval "vrewoinrv09g11" (<@ compare 1L 0L > 0 @>) true
+        checkEval "vrewoinrv09g12" (<@ 0L < 1L @>) true
+        checkEval "vrewoinrv09g13" (<@ 0L <= 1L @>) true
+        checkEval "vrewoinrv09g14" (<@ 1L <= 1L @>) true
+        checkEval "vrewoinrv09g15" (<@ 2L <= 1L @>) false
+        checkEval "vrewoinrv09g16" (<@ 0L > 1L @>) false
+        checkEval "vrewoinrv09g17" (<@ 0L >= 1L @>) false
+        checkEval "vrewoinrv09g18" (<@ 1L >= 1L @>) true
+        checkEval "vrewoinrv09g19" (<@ 2L >= 1L @>) true
+
+        checkEval "vrewoinrv09g21" (<@ compare 0y 0y = 0 @>) true
+        checkEval "vrewoinrv09g22" (<@ compare 0y 1y < 0 @>) true
+        checkEval "vrewoinrv09g23" (<@ compare 1y 0y > 0 @>) true
+        checkEval "vrewoinrv09g24" (<@ 0y < 1y @>) true
+        checkEval "vrewoinrv09g25" (<@ 0y <= 1y @>) true
+        checkEval "vrewoinrv09g26" (<@ 1y <= 1y @>) true
+        checkEval "vrewoinrv09g27" (<@ 2y <= 1y @>) false
+        checkEval "vrewoinrv09g28" (<@ 0y > 1y @>) false
+        checkEval "vrewoinrv09g29" (<@ 0y >= 1y @>) false
+        checkEval "vrewoinrv09g30" (<@ 1y >= 1y @>) true
+        checkEval "vrewoinrv09g31" (<@ 2y >= 1y @>) true
+
+        checkEval "vrewoinrv09g32" (<@ compare 0M 0M = 0 @>) true
+        checkEval "vrewoinrv09g33" (<@ compare 0M 1M < 0 @>) true
+        checkEval "vrewoinrv09g34" (<@ compare 1M 0M > 0 @>) true
+        checkEval "vrewoinrv09g35" (<@ 0M < 1M @>) true
+        checkEval "vrewoinrv09g36" (<@ 0M <= 1M @>) true
+        checkEval "vrewoinrv09g37" (<@ 1M <= 1M @>) true
+        checkEval "vrewoinrv09g38" (<@ 2M <= 1M @>) false
+        checkEval "vrewoinrv09g39" (<@ 0M > 1M @>) false
+        checkEval "vrewoinrv09g40" (<@ 0M >= 1M @>) false
+        checkEval "vrewoinrv09g41" (<@ 1M >= 1M @>) true
+        checkEval "vrewoinrv09g42" (<@ 2M >= 1M @>) true
+
+        checkEval "vrewoinrv09g43" (<@ compare 0I 0I = 0 @>) true
+        checkEval "vrewoinrv09g44" (<@ compare 0I 1I < 0 @>) true
+        checkEval "vrewoinrv09g45" (<@ compare 1I 0I > 0 @>) true
+        checkEval "vrewoinrv09g46" (<@ 0I < 1I @>) true
+        checkEval "vrewoinrv09g47" (<@ 0I <= 1I @>) true
+        checkEval "vrewoinrv09g48" (<@ 1I <= 1I @>) true
+        checkEval "vrewoinrv09g49" (<@ 2I <= 1I @>) false
+        checkEval "vrewoinrv09g50" (<@ 0I > 1I @>) false
+        checkEval "vrewoinrv09g51" (<@ 0I >= 1I @>) false
+        checkEval "vrewoinrv09g52" (<@ 1I >= 1I @>) true
+        checkEval "vrewoinrv09g53" (<@ 2I >= 1I @>) true
+
+
+        checkEval "vrewoinrv09g" (<@ sin 0.0 @>) (sin 0.0)
+        checkEval "vrewoinrv09h" (<@ sinh 0.0 @>) (sinh 0.0)
+        checkEval "vrewoinrv09j" (<@ cos 0.0 @>) (cos 0.0)
+        checkEval "vrewoinrv09k" (<@ cosh 0.0 @>) (cosh 0.0)
+        checkEval "vrewoinrv09l" (<@ tan 1.0 @>) (tan 1.0)
+        checkEval "vrewoinrv09z" (<@ tanh 1.0 @>) (tanh 1.0)
+        checkEval "vrewoinrv09x" (<@ abs -2.0 @>) (abs -2.0)
+        checkEval "vrewoinrv09c" (<@ ceil 2.0 @>) (ceil 2.0)
+        checkEval "vrewoinrv09v" (<@ sqrt 2.0 @>) (sqrt 2.0)
+        checkEval "vrewoinrv09b" (<@ sign 2.0 @>) (sign 2.0)
+        checkEval "vrewoinrv09n" (<@ truncate 2.3 @>) (truncate 2.3)
+        checkEval "vrewoinrv09m" (<@ floor 2.3 @>) (floor 2.3)
+        checkEval "vrewoinrv09Q" (<@ round 2.3 @>) (round 2.3)
+        checkEval "vrewoinrv09W" (<@ log 2.3 @>) (log 2.3)
+        checkEval "vrewoinrv09E" (<@ log10 2.3 @>) (log10 2.3)
+        checkEval "vrewoinrv09R" (<@ exp 2.3 @>) (exp 2.3)
+        checkEval "vrewoinrv09T" (<@ 2.3 ** 2.4 @>) (2.3 ** 2.4)
+
+        checkEval "vrewoinrv09Y" (<@ sin 0.0f @>) (sin 0.0f)
+        checkEval "vrewoinrv09U" (<@ sinh 0.0f @>) (sinh 0.0f)
+        checkEval "vrewoinrv09I" (<@ cos 0.0f @>) (cos 0.0f)
+        checkEval "vrewoinrv09O" (<@ cosh 0.0f @>) (cosh 0.0f)
+        checkEval "vrewoinrv09P" (<@ tan 1.0f @>) (tan 1.0f)
+        checkEval "vrewoinrv09A" (<@ tanh 1.0f @>) (tanh 1.0f)
+        checkEval "vrewoinrv09S" (<@ abs -2.0f @>) (abs -2.0f)
+        checkEval "vrewoinrv09D" (<@ ceil 2.0f @>) (ceil 2.0f)
+        checkEval "vrewoinrv09F" (<@ sqrt 2.0f @>) (sqrt 2.0f)
+        checkEval "vrewoinrv09G" (<@ sign 2.0f @>) (sign 2.0f)
+        checkEval "vrewoinrv09H" (<@ truncate 2.3f @>) (truncate 2.3f)
+        checkEval "vrewoinrv09J" (<@ floor 2.3f @>) (floor 2.3f)
+        checkEval "vrewoinrv09K" (<@ round 2.3f @>) (round 2.3f)
+        checkEval "vrewoinrv09L" (<@ log 2.3f @>) (log 2.3f)
+        checkEval "vrewoinrv09Z" (<@ log10 2.3f @>) (log10 2.3f)
+        checkEval "vrewoinrv09X" (<@ exp 2.3f @>) (exp 2.3f)
+        checkEval "vrewoinrv09C" (<@ 2.3f ** 2.4f @>) (2.3f ** 2.4f)
+
+        checkEval "vrewoinrv09V" (<@ ceil 2.0M @>) (ceil 2.0M)
+        checkEval "vrewoinrv09B" (<@ sign 2.0M @>) (sign 2.0M)
+        checkEval "vrewoinrv09N" (<@ truncate 2.3M @>) (truncate 2.3M)
+        checkEval "vrewoinrv09M" (<@ floor 2.3M @>) (floor 2.3M)
+
+        checkEval "vrewoinrv09QQ" (<@ sign -2 @>) (sign -2)
+        checkEval "vrewoinrv09WW" (<@ sign -2y @>) (sign -2y)
+        checkEval "vrewoinrv09EE" (<@ sign -2s @>) (sign -2s)
+        checkEval "vrewoinrv09RR" (<@ sign -2L @>) (sign -2L)
+
+        checkEval "vrewoinrv09TT" (<@ [ 0 .. 10 ] @>) [ 0 .. 10 ]
+        checkEval "vrewoinrv09YY" (<@ [ 0y .. 10y ] @>) [ 0y .. 10y ]
+        checkEval "vrewoinrv09UU" (<@ [ 0s .. 10s ] @>) [ 0s .. 10s ]
+        checkEval "vrewoinrv09II" (<@ [ 0L .. 10L ] @>) [ 0L .. 10L ]
+        checkEval "vrewoinrv09OO" (<@ [ 0u .. 10u ] @>) [ 0u .. 10u ]
+        checkEval "vrewoinrv09PP" (<@ [ 0uy .. 10uy ] @>) [ 0uy .. 10uy ]
+        checkEval "vrewoinrv09AA" (<@ [ 0us .. 10us ] @>) [ 0us .. 10us ]
+        checkEval "vrewoinrv09SS" (<@ [ 0UL .. 10UL ] @>) [ 0UL .. 10UL ]
+        
+
+        
+        // Round dynamic dispatch on Decimal
+        checkEval "vrewoinrv09FF" (<@ round 2.3M @>) (round 2.3M)
+
+        // Measure stuff:
+        checkEval "vrewoinrv09GG" (<@ atan2 3.0 4.0 @>) (atan2 3.0 4.0 )
+        
+        [<Measure>]
+        type kg
+        checkEval "vrewoinrv09HH" (<@ 1.0<kg> @>) (1.0<kg>)
+
+        // Measure stuff:
+        checkEval "vrewoinrv09JJ" (<@ 1.0<kg> + 2.0<kg> @>) (3.0<kg>)
+
+
+        Eval <@ Array.average [| 0.0 .. 1.0 .. 10000.0 |] @> 
+
     module LanguagePrimitiveCastingUnitsOfMeasure = 
         [<Measure>]
         type m
@@ -1484,6 +1781,15 @@ module EvaluationTests =
         checkEval "castingunits5" (<@ 2L |> LanguagePrimitives.Int64WithMeasure<m> |> int64 @>) 2L
         checkEval "castingunits6" (<@ 2s |> LanguagePrimitives.Int16WithMeasure<m> |> int16 @>) 2s
         checkEval "castingunits7" (<@ 2y |> LanguagePrimitives.SByteWithMeasure<m> |> sbyte @>) 2y
+        checkEval "castingunits8" (<@ 2ul |> LanguagePrimitives.UInt32WithMeasure<m> |> uint32 @>) 2ul
+        checkEval "castingunits9" (<@ 2UL |> LanguagePrimitives.UInt64WithMeasure<m> |> uint64 @>) 2UL
+        checkEval "castingunits10" (<@ 2us |> LanguagePrimitives.UInt16WithMeasure<m> |> uint16 @>) 2us
+        checkEval "castingunits11" (<@ 2uy |> LanguagePrimitives.ByteWithMeasure<m> |> byte @>) 2uy
+
+        //NOTE quotations currently *DO NOT* support native integers
+        //TODO revisit when the test scaffolding is changed/migrated!
+        // checkEval "castingunits12" (<@ 2n |> LanguagePrimitives.IntPtrWithMeasure<m> |> nativeint @>) 2n
+        // checkEval "castingunits13" (<@ 2un |> unativeint |> LanguagePrimitives.UIntPtrWithMeasure<m> |> unativeint @>) 2un
 
 module QuotationTests =
     open Microsoft.FSharp.Quotations
@@ -2010,7 +2316,7 @@ module Query =
             F ([srcTy],[src])
 
     let MakeQueryableTake = 
-        let F = MakeGenericStaticMethod <@ System.Linq.Queryable.Take @> 
+        let F = MakeGenericStaticMethod <@ System.Linq.Queryable.Take : _ * int -> _  @> 
         fun (srcTy,src,count)  -> 
             let src = Expr.Coerce(src,MakeIQueryableTy srcTy)
             F ([srcTy],[src;count])
@@ -2493,4 +2799,3 @@ let _ =
       stdout.WriteLine "Test Passed"; 
       System.IO.File.WriteAllText("test.ok","ok"); 
       exit 0
-

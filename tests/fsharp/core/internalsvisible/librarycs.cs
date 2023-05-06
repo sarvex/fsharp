@@ -15,5 +15,22 @@ namespace LibraryCS
         {
                 private  static int PrivateProperty    { get { return 2; } }
                 internal static int InternalProperty   { get { return 2; } }
-        }       
+        }
+    public class Class1
+    {
+        public Class1() { }
+        protected static int ProtectedStatic;
+        internal static int InternalStatic;
+        protected internal static int ProtectedInternalStatic;
+        public static int PublicStatic;
+        protected int Protected;
+        internal int Internal;
+        protected internal int ProtectedInternal;
+        public int Public;
+    }
+}
+namespace Repro
+{
+    internal delegate string D(int x);
+    internal class C { public C(D d) { } }
 }

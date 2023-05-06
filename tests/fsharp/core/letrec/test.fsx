@@ -1,32 +1,19 @@
 // #Conformance #LetBindings #Recursion #TypeInference #ObjectConstructors #Classes #Records 
-#if Portable
+#if TESTS_AS_APP
 module Core_letrec
 #endif
 
-let failures = ref false
-let report_failure s = 
-  stderr.WriteLine ("FAIL: "+s); failures := true
+let failures = ref []
 
+let report_failure (s : string) = 
+    stderr.Write" NO: "
+    stderr.WriteLine s
+    failures := !failures @ [s]
 
-
-#if NetCore
-#else
-let argv = System.Environment.GetCommandLineArgs() 
-let SetCulture() = 
-  if argv.Length > 2 && argv.[1] = "--culture" then  begin
-    let cultureString = argv.[2] in 
-    let culture = new System.Globalization.CultureInfo(cultureString) in 
-    stdout.WriteLine ("Running under culture "+culture.ToString()+"...");
-    System.Threading.Thread.CurrentThread.CurrentCulture <-  culture
-  end 
-  
-do SetCulture()    
-#endif
 
 let test t s1 s2 = 
   if s1 <> s2 then 
-    (stderr.WriteLine ("test "+t+" failed");
-     failures := true)
+    report_failure ("test "+t+" failed")
   else
     stdout.WriteLine ("test "+t+" succeeded")   
 
@@ -140,8 +127,7 @@ let WouldFailAtRuntimeTest2 () =
   and a3 = (fun x -> a2 + 2) 1 in 
   a2 + a3
 
-#if Portable
-#else
+#if !TESTS_AS_APP && !NETCOREAPP
 open System
 open System.Windows.Forms
 
@@ -317,8 +303,7 @@ module RecursiveInterfaceObjectExpressions = begin
   
 end
 
-#if Portable
-#else
+#if !TESTS_AS_APP && !NETCOREAPP
 module RecursiveInnerConstrainedGenerics = begin
 
     open System.Windows.Forms
@@ -640,17 +625,199 @@ module BasicPermutations =
           // to the base implementations of overridden members <file> <line>
           override x.Foo a = base.Foo(a)
 
+module Test2 = 
+    let tag = 
+        let mutable i = 0
+        fun _ -> i <- i+1; i // this should _not_ generalize, see https://github.com/Microsoft/visualfsharp/issues/3358
 
-#if Portable
-let aa = 
-    if !failures then (stdout.WriteLine "Test Failed"; exit 1) 
-    else (stdout.WriteLine "Test Passed"; exit 0)
+    test "vwekjwve91" (tag()) 1
+    test "vwekjwve92" (tag()) 2
+    test "vwekjwve93" (tag()) 3
+
+module Test3 = 
+    let rec tag = 
+        let mutable i = 0
+        fun _ -> i <- i+1; i // this should _not_ generalize, see https://github.com/Microsoft/visualfsharp/issues/3358
+
+    test "vwekjwve94" (tag()) 1
+    test "vwekjwve95" (tag()) 2
+    test "vwekjwve96" (tag()) 3
+
+module Test12384 =
+    type Node =
+        {
+            Next: Node
+            Value: int
+        }
+
+    let rec one =
+        {
+            Next = two
+            Value = 1
+        }
+
+    and two =
+        {
+            Next = one
+            Value = 2
+        }
+    printfn "%A" one
+    printfn "%A" two
+    test "cweewlwne1" one.Value 1
+    test "cweewlwne2" one.Next.Value 2
+    test "cweewlwne3" one.Next.Next.Value 1
+    test "cweewlwne4" two.Value 2
+    test "cweewlwne5" two.Next.Value 1
+    test "cweewlwne6" two.Next.Next.Value 2
+
+module Test12384b =
+    type Node =
+        {
+            Next: Node
+            Value: int
+        }
+
+    let rec one =
+        {
+            Next = two
+            Value = 1
+        }
+
+    and two =
+        {
+            Next = one
+            Value = 2
+        }
+    // Also test the case where the two recursive bindings occur with a nested module after
+    module M =
+        let f x = x + 1
+        
+    printfn "%A" one
+    printfn "%A" two
+    test "cweewlwne1a" one.Value 1
+    test "cweewlwne2a" one.Next.Value 2
+    test "cweewlwne3a" one.Next.Next.Value 1
+    test "cweewlwne4a" two.Value 2
+    test "cweewlwne5a" two.Next.Value 1
+    test "cweewlwne6a" two.Next.Next.Value 2
+
+module rec Test12384c =
+    type Node =
+        {
+            Next: Node
+            Value: int
+        }
+
+    let one =
+        {
+            Next = two
+            Value = 1
+        }
+
+    let two =
+        {
+            Next = one
+            Value = 2
+        }
+    // Also test the case where the two recursive bindings occur with a nested module after
+    module M =
+        let f x = x + 1
+        
+    printfn "%A" one
+    printfn "%A" two
+    test "cweewlwne1b" one.Value 1
+    test "cweewlwne2b" one.Next.Value 2
+    test "cweewlwne3b" one.Next.Next.Value 1
+    test "cweewlwne4b" two.Value 2
+    test "cweewlwne5b" two.Next.Value 1
+    test "cweewlwne6b" two.Next.Next.Value 2
+
+
+//Note, this case doesn't initialize successfully because of the intervening module. Tracked by #12384
+  
+(*
+module rec Test12384d =
+    type Node =
+        {
+            Next: Node
+            Value: int
+        }
+
+    let one =
+        {
+            Next = two
+            Value = 1
+        }
+
+    // An intervening module declaration
+    module M =
+        let x() = one
+        
+    let two =
+        {
+            Next = one
+            Value = 2
+        }
+
+    printfn "%A" one
+    printfn "%A" two
+    test "cweewlwne1b" one.Value 1
+    test "cweewlwne2b" one.Next.Value 2
+    test "cweewlwne3b" one.Next.Next.Value 1
+    test "cweewlwne1b" (M.x()).Value 1
+    test "cweewlwne2b" (M.x()).Next.Value 2
+    test "cweewlwne3b" (M.x()).Next.Next.Value 1
+    test "cweewlwne4b" two.Value 2
+    test "cweewlwne5b" two.Next.Value 1
+    test "cweewlwne6b" two.Next.Next.Value 2
+*)
+
+module rec Test12384e =
+    type Node =
+        {
+            Next: Node
+            Value: int
+        }
+
+    let one =
+        {
+            Next = two
+            Value = 1
+        }
+
+    // An intervening type declaration
+    type M() =
+        static member X() = one
+        
+    let two =
+        {
+            Next = one
+            Value = 2
+        }
+
+    printfn "%A" one
+    printfn "%A" two
+    test "cweewlwne1b" one.Value 1
+    test "cweewlwne2b" one.Next.Value 2
+    test "cweewlwne3b" one.Next.Next.Value 1
+    test "cweewlwne1b" (M.X()).Value 1
+    test "cweewlwne2b" (M.X()).Next.Value 2
+    test "cweewlwne3b" (M.X()).Next.Next.Value 1
+    test "cweewlwne4b" two.Value 2
+    test "cweewlwne5b" two.Next.Value 1
+    test "cweewlwne6b" two.Next.Next.Value 2
+
+#if TESTS_AS_APP
+let RUN() = !failures
 #else
-do 
-  if !failures then (stdout.WriteLine "Test Failed"; exit 1) 
-
-
-do (stdout.WriteLine "Test Passed"; 
-    System.IO.File.WriteAllText("test.ok","ok"); 
-    exit 0)
+let aa =
+  match !failures with 
+  | [] -> 
+      stdout.WriteLine "Test Passed"
+      System.IO.File.WriteAllText("test.ok","ok")
+      exit 0
+  | _ -> 
+      stdout.WriteLine "Test Failed"
+      exit 1
 #endif
+

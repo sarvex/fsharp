@@ -30,7 +30,7 @@ type ClassType2 =
   end
 
 
-module RecordTypeTest: begin
+module RecordTypeTest = begin
 
     [<Sealed>]
     type AbstractType =
@@ -79,7 +79,7 @@ module RecordTypeTest: begin
 
 end
 
-module UnionTypeTest: begin
+module UnionTypeTest = begin
 
     [<Sealed>]
     type AbstractType = 
@@ -128,4 +128,14 @@ module UnionTypeTest: begin
 
     end
 
+end
+
+module ToStringOnUnionTest = begin
+   type MyUnion = A of string | B
+ 
+end
+
+module ToStringOnUnionTestOverride = begin
+   type MyUnion = A of string | B
+ 
 end

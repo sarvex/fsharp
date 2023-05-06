@@ -24,7 +24,7 @@ type BadSealedInterface =
 type BadSealedAbbreviatedType = System.Object 
 
 [<Sealed>]
-type UnnecessarilySealedDelegate() = delegate of int -> int
+type UnnecessarilySealedDelegate = delegate of int -> int
         
 type BadExtensionOfSealedType() = 
     class
@@ -286,8 +286,6 @@ end
 
 
 
-
-
 module PositiveTests = 
 
     [<System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)>]
@@ -298,6 +296,8 @@ module PositiveTests =
     type X2 = 
         abstract M : unit -> 'a
 
+    [<System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Explicit)>]
+    type X1 =  { r : int }
 
 module NegativeTests = 
     [<System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)>]

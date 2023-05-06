@@ -1,13 +1,21 @@
 // #Conformance #Regression #LetBindings #TypeInference 
-#if Portable
+#if TESTS_AS_APP
 module Core_innerpoly
 #endif
 
-let mutable failures = false
-let report_failure () = stderr.WriteLine " NO"; failures <- true
-let test s b = stderr.Write(s:string);  if b then stderr.WriteLine " OK" else report_failure() 
+let failures = ref []
 
+let report_failure (s : string) = 
+    stderr.Write" NO: "
+    stderr.WriteLine s
+    failures := !failures @ [s]
 
+let test (s : string) b = 
+    stderr.Write(s)
+    if b then stderr.WriteLine " OK"
+    else report_failure (s)
+
+let check s b1 b2 = test s (b1 = b2)
 
 module TestNullIsGeneralizeable = begin
 
@@ -381,12 +389,104 @@ module InnerGenericBindingsInComputationExpressions = begin
     f()
 end
 
-#if Portable
-let aa = 
-    if failures then (stdout.WriteLine "Test Failed"; exit 1) 
-    else (stdout.WriteLine "Test Passed"; exit 0)
+module LocalTypeFunctionRequiredForWitnessPassingOfGenericInnerFunctionsConstrainedByMemberConstraints = 
+    let inline clamp16 v = uint16 (max 0. (min 65535. v))
+    let inline clamp8  v = uint8  (max 0. (min   255. v))
+
+    type Clampage =
+        static member inline FromFloat (_ : byte,   _ : Clampage) = fun (x : float) -> clamp8  x
+        static member inline FromFloat (_ : uint16, _ : Clampage) = fun (x : float) -> clamp16 x
+
+        static member inline Invoke (x: float) : 'Num =
+            let inline call2 (a: ^a, b: ^b) = ((^a or ^b) : (static member FromFloat : _*_ -> _) (b, a))
+            let inline call (a: 'a) = fun (x: 'x) -> call2 (a, Unchecked.defaultof<'r>) x : 'r
+            call Unchecked.defaultof<Clampage> x
+
+    let inline clamp x = Clampage.Invoke x
+    let x1 : byte = clamp 3.0 
+    let x2 : uint16 = clamp 3.0 
+    let x3 : byte = clamp 257.0 
+    check "clecqwe1" x1 3uy
+    check "clecqwe2" x2 3us
+    check "clecqwe3" x3 255uy
+
+// Same as the above but capturing an extra constrained free type variable 'Free
+module LocalTypeFunctionRequiredForWitnessPassingOfGenericInnerFunctionsConstrainedByMemberConstraints2 = 
+    let inline clamp16 v = uint16 (max 0. (min 65535. v))
+    let inline clamp8  v = uint8  (max 0. (min   255. v))
+
+    type Clampage =
+        static member inline FromFloat (_ : byte,   _ : Clampage) = fun (x : float) -> clamp8  x
+        static member inline FromFloat (_ : uint16, _ : Clampage) = fun (x : float) -> clamp16 x
+
+        static member inline Invoke (x: float) (free: 'Free) : 'Num * 'Free =
+            let inline call2 (a: ^a, b: ^b) = ((^a or ^b) : (static member FromFloat : _*_ -> _) (b, a))
+            let inline call (a: 'a) = (fun (x: 'x) -> call2 (a, Unchecked.defaultof<'r>) x : 'r), free + free
+            let f, info = call Unchecked.defaultof<Clampage>
+            f x, info
+
+    let inline clamp x free = Clampage.Invoke x free
+    let (x1a1: byte, x1a2: int64) = clamp 3.0 1L
+    let (x1b1: uint16, x1b2: string) = clamp 3.0 "abc"
+    check "clecqwea1" x1a1 3uy
+    check "clecqwea2" x1a2 2L
+    check "clecqwea3" x1b1 3us
+    check "clecqwea4" x1b2 "abcabc"
+
+module Bug10408 = 
+    let test x =
+        match x with
+        | [| |] -> x
+        | _ -> x
+
+module Bug11620A =
+
+    let createService (metadata: 'T) : 'Data when 'Data :> System.IComparable = Unchecked.defaultof<'Data>
+
+    let getCreateServiceCallback<'T> (thing: 'T) =
+        let getService () : 'Data = createService thing
+        (fun () -> getService)
+
+
+module Bug11620B =
+
+    type Data = interface end
+    and Service<'Data when 'Data :> Data>() = class end
+
+    type IThing = interface end
+    and Thing<'T> = { Metadata: 'T } with interface IThing
+
+    let createService metadata = (Service<'Data>())
+
+    let getCreateServiceCallback<'T> (thing: IThing) =
+        let upcastThing =
+            thing
+            :?> Thing<'T>
+        let getService () = createService upcastThing.Metadata
+        (fun () -> getService)
+
+    let main _ =
+        let dummyThing : Thing<int> = { Thing.Metadata = 42 }
+        // crash occured on the following line
+        let callback = getCreateServiceCallback<int> dummyThing
+        let resolvedService = callback ()
+        printfn "Resolved service: %A" resolvedService
+        0
+
+    main ()
+
+
+#if TESTS_AS_APP
+let RUN() = !failures
 #else
-do (stdout.WriteLine "Test Passed"; 
-    System.IO.File.WriteAllText("test.ok","ok"); 
-    exit 0)
+let aa =
+  match !failures with 
+  | [] -> 
+      stdout.WriteLine "Test Passed"
+      System.IO.File.WriteAllText("test.ok","ok")
+      exit 0
+  | _ -> 
+      stdout.WriteLine "Test Failed"
+      exit 1
 #endif
+

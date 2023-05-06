@@ -1,134 +1,432 @@
-# F# Compiler, Core Library and Visual F# Tools Open Contribution Repository
+# Development Guide
 
-This repo is where you can contribute to the F# compiler, core library and the Visual F# Tools.
+This document details more advanced options for developing in this codebase. It is not quite necessary to follow it, but it is likely that you'll find something you'll need from here.
 
-To learn what F# is and why it's interesting, go to [fsharp.org](http://fsharp.org).
+## Documentation
 
-To get a free F# environment, go to [fsharp.org](http://fsharp.org/use/windows).
+The compiler is documented in [docs](docs/index.md). This is essential reading.
 
-**License**
-> Contributions made to this repo are subject to terms and conditions of the Apache License, Version 2.0. A copy of the license can be found in the [License.txt](License.txt) file at the root of this distribution.
-> By using this source code in any fashion, you are agreeing to be bound by the terms of the Apache License, Version 2.0. You must not remove this notice, or any other, from this software.
+## Recommended workflow
 
-**Questions?** If you have questions about the source code, please ask in the issues.
+We recommend the following overall workflow when developing for this repository:
 
-## 0.  A Shortcut to Build and Smoke Test
+* Fork this repository
+* Always work in your fork
+* Always keep your fork up to date
 
-You can build a subset of functionality (including bootstrapped compiler and library) and run a very 
-small number of 'smoke' tests using the script used by continuous integration:
+Before updating your fork, run this command:
 
-    .\appveyor-build.cmd
+```shell
+git remote add upstream https://github.com/dotnet/fsharp.git
+```
 
-See the script for what this does.  After you do this, you can do further testing, see  [TESTGUIDE.md](TESTGUIDE.md).
+This will make management of multiple forks and your own work easier over time.
+
+## Updating your fork
+
+We recommend the following commands to update your fork:
+
+```shell
+git checkout main
+git clean -xdf
+git fetch upstream
+git rebase upstream/main
+git push
+```
+
+Or more succinctly:
+
+```shell
+git checkout main && git clean -xdf && git fetch upstream && git rebase upstream/main && git push
+```
+
+This will update your fork with the latest from `dotnet/fsharp` on your machine and push those updates to your remote fork.
+
+## Developing on Windows
+
+Install the latest released [Visual Studio](https://visualstudio.microsoft.com/vs/preview/) preview, as that is what the `main` branch's tools are synced with. Select the following workloads:
+
+* .NET desktop development (also check F# desktop support, as this will install some legacy templates)
+* Visual Studio extension development
+
+You will also need the latest .NET 7 SDK installed from [here](https://dotnet.microsoft.com/download/dotnet/7.0).
+
+Building is simple:
+
+```shell
+build.cmd
+```
+
+Desktop tests can be run with:
+
+```shell
+build.cmd -test -c Release
+```
+
+After you build the first time you can open and use this solution in Visual Studio:
+
+```shell
+.\VisualFSharp.sln
+```
+
+If you don't have everything installed yet, you'll get prompted by Visual Studio to install a few more things. This is because we use a `.vsconfig` file that specifies all our dependencies.
+
+If you are just developing the core compiler and library then building ``FSharp.sln`` will be enough.
+
+We recommend installing the latest Visual Studio preview and using that if you are on Windows. However, if you prefer not to do that, you will need to install the following:
+
+* [.NET Framework 4.7.2](https://dotnet.microsoft.com/download/dotnet-framework/net472)
+* [.NET 7](https://dotnet.microsoft.com/download/dotnet/7.0)
+
+You'll need to pass an additional flag to the build script:
+
+```shell
+build.cmd -noVisualStudio
+```
+
+You can open `FSharp.sln` in your editor of choice.
+
+## Developing on Linux or macOS
+
+For Linux/Mac:
+
+```shell
+./build.sh
+```
+
+Running tests:
+
+```shell
+./build.sh --test
+```
+
+You can then open `FSharp.sln` in your editor of choice.
+
+## Testing from the command line
+
+You can find all test options as separate flags. For example `build -testAll`:
+
+```shell
+  -testAll                  Run all tests
+  -testAllButIntegration    Run all but integration tests
+  -testCambridge            Run Cambridge tests
+  -testCompiler             Run FSharpCompiler unit tests
+  -testCompilerService      Run FSharpCompilerService unit tests
+  -testDesktop              Run tests against full .NET Framework
+  -testCoreClr              Run tests against CoreCLR
+  -testFSharpCore           Run FSharpCore unit tests
+  -testFSharpQA             Run F# Cambridge tests
+  -testScripting            Run Scripting tests
+  -testVs                   Run F# editor unit tests
+```
+
+Running any of the above will build the latest changes and run tests against them.
+
+## Using your custom compiler to build other projects
+
+Building the compiler using `build.cmd` or `build.sh` will output artifacts in `artifacts\bin`. 
+
+To use your custom build of `Fsc`, add the `DotnetFscCompilerPath` property to your project's `.fsproj` file, adjusted to point at your local build directory, build configuration, and target framework as appropriate:
+
+```xml
+<PropertyGroup>
+    <DotnetFscCompilerPath>D:\Git\fsharp\artifacts\bin\fsc\Debug\net7.0\fsc.dll</DotnetFscCompilerPath>
+</PropertyGroup>
+```
+
+## Updating FSComp.fs, FSComp.resx and XLF
+
+If your changes involve modifying the list of language keywords in any way, (e.g. when implementing a new keyword), the XLF localization files need to be synced with the corresponding resx files. This can be done automatically by running
+
+```shell
+dotnet build src\Compiler /t:UpdateXlf
+```
+If you are on a Mac, you can run this command from the root of the repository:
+
+```shell
+sh build.sh -c Release
+```
+
+## Updating baselines in tests
+
+Some tests use "baseline" (.bsl) files.  There is sometimes a way to update these baselines en-masse in your local build,
+useful when some change affects many baselines.  For example, in the `fsharpqa` and `FSharp.Compiler.ComponentTests` tests the baselines
+are updated using scripts or utilities that allow the following environment variable to be set:
+
+Windows:
+
+CMD:
+
+```shell
+set TEST_UPDATE_BSL=1
+```
+
+PowerShell:
+
+```shell
+$env:TEST_UPDATE_BSL=1
+```
+
+Linux/macOS:
+
+```shell
+export TEST_UPDATE_BSL=1
+```
+
+Next, run a build script build (debug or release, desktop or coreclr, depending which baselines you need to update), and test as described [above](#Testing-from-the-command-line). For example:
+
+`./Build.cmd -c Release -testCoreClr` to update Release CoreCLR baselines.
+
+or
+
+`./Build.cmd -c Release -testDesktop` to update Release .NET Framework baselines.
+
+> **Note**
+> Please note, that by default, **Release** version of IL baseline tests will be running in CI, so when updating baseline (.bsl) files, make sure to add `-c Release` flag to the build command.
+
+## Automated Source Code Formatting
+
+Some of the code in this repository is formatted automatically by [Fantomas](https://github.com/fsprojects/fantomas). To format all files use:
+
+```cmd
+dotnet fantomas . -r
+```
+
+The formatting is checked automatically by CI:
+
+```cmd
+dotnet fantomas . -r --check
+```
+
+At the time of writing only a subset of signature files (`*.fsi`) are formatted. See the settings in `.fantomasignore` and `.editorconfig`.
+
+## Developing the F# tools for Visual Studio
+
+As you would expect, doing this requires both Windows and Visual Studio are installed.
+
+See [Developing on Windows](#Developing-on-Windows) for instructions to install what is needed; it's the same prerequisites.
+
+### Quickly see your changes locally
+
+First, ensure that `VisualFSharpDebug` is the startup project.
+
+Then, use the **f5** or **ctrl+f5** keyboard shortcuts to test your tooling changes. The former will debug a new instance of Visual Studio. The latter will launch a new instance of Visual Studio, but with your changes installed.
+
+Alternatively, you can do this entirely via the command line if you prefer that:
+
+```shell
+devenv.exe /rootsuffix RoslynDev
+```
+
+### Deploy your changes into a current Visual Studio installation
+
+If you'd like to "run with your changes", you can produce a VSIX and install it into your current Visual Studio instance.
+
+For this, run the following using the VS Developer PowerShell from the repo root:
+```shell
+VSIXInstaller.exe /u:"VisualFSharp"
+VSIXInstaller.exe artifacts\VSSetup\Release\VisualFSharpDebug.vsix
+```
+
+It's important to use `Release` if you want to see if your changes have had a noticeable performance impact.
+
+### Troubleshooting a failed build of the tools
+
+You may run into an issue with a somewhat difficult or cryptic error message, like:
+
+> error VSSDK1077: Unable to locate the extensions directory. "ExternalSettingsManager::GetScopePaths failed to initialize PkgDefManager for C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\Common7\IDE\devenv.exe".
+
+Or hard crash on launch ("Unknown Error").
+
+To fix this, delete these folders:
+
+* `%localappdata%\Microsoft\VisualStudio\<version>_(some number here)RoslynDev`
+* `%localappdata%\Microsoft\VisualStudio\<version>_(some number here)`
+
+Where `<version>` corresponds to the latest Visual Studio version on your machine.
+
+## Coding conventions
+
+* Coding conventions vary from file to file
+
+* Format using [the F# style guide](https://learn.microsoft.com/dotnet/fsharp/style-guide/)
+
+* Avoid tick identifiers like `body'`. They are generally harder to read and can't be inspected in the debugger as things stand. Generally use R suffix instead, e.g. `bodyR`. The R can stand for "rewritten" or "result"
+
+* Avoid abbreviations like `bodyty` that are all lowercase. They are really hard to read for newcomers. Use `bodyTy` instead.
+
+* See the compiler docs for common abbreviations
+
+* Don't use `List.iter` and `Array.iter` in the compiler, a `for ... do ...` loop is simpler to read and debug
+
+## Performance and debugging
+
+Use the `Debug` configuration to test your changes locally. It is the default. Do not use the `Release` configuration! Local development and testing of Visual Studio tooling is not designed for the `Release` configuration.
+
+### Writing and running benchmarks
+
+Existing compiler benchmarks can be found in `tests\benchmarks\`.
+
+### Benchmarking and profiling the compiler
+
+**NOTE:** When running benchmarks or profiling compiler, and comparing results with upstream version, make sure:
+
+* Always build both versions of compiler/FCS from source and not use pre-built binaries from SDK (SDK binaries are crossgen'd, which can affect performance).
+* To run `Release` build of compiler/FCS.
+
+### Example benchmark setup using [BenchmarkDotNet](https://github.com/dotnet/BenchmarkDotNet)
+
+1. Perform a clean build of the compiler and FCS from source (as described in this document, build can be done with `-noVisualStudio` in case if FCS/FSharp.Core is being benchmarked/profiled).
+
+2. Create a benchmark project (in this example, the project will be created in `tests\benchmarks\FCSBenchmarks`).
+
+      ```shell
+      cd tests\benchmarks\FCSBenchmarks
+      dotnet new console -o FcsBench --name FcsBench -lang F#
+      ```
+
+3. Add needed packages and project references.
+
+    ```shell
+    cd FcsBench
+    dotnet add package BenchmarkDotNet
+    dotnet add reference ..\..\..\src\Compiler\FSharp.Compiler.Service.fsproj
+    ```
+
+4. Additionally, if you want to test changes to the FSharp.Core (note that the relative path can be different)
+
+     ```shell
+     dotnet add reference ..\..\..\src\FSharp.Core\FSharp.Core.fsproj
+     ```
+
+    > as well as the following property have to be added to `FcsBench.fsproj`:
+
+    ```xml
+    <PropertyGroup>
+        <DisableImplicitFSharpCoreReference>true</DisableImplicitFSharpCoreReference>
+    </PropertyGroup>
+    ```
+
+5. Add a new benchmark for FCS/FSharp.Core by editing `Program.fs`.
+
+      ```fsharp
+      open System.IO
+      open FSharp.Compiler.CodeAnalysis
+      open FSharp.Compiler.Diagnostics
+      open FSharp.Compiler.Text
+      open BenchmarkDotNet.Attributes
+      open BenchmarkDotNet.Running
+
+      [<MemoryDiagnoser>]
+      type CompilerService() =
+          let mutable checkerOpt = None
+          let mutable sourceOpt = None
+
+          let parsingOptions =
+              {
+                  SourceFiles = [|"CheckExpressions.fs"|]
+                  ConditionalDefines = []
+                  DiagnosticOptions = FSharpDiagnosticOptions.Default
+                  LangVersionText = "default"
+                  IsInteractive = false
+                  LightSyntax = None
+                  CompilingFsLib = false
+                  IsExe = false
+              }
+
+          [<GlobalSetup>]
+          member _.Setup() =
+              match checkerOpt with
+              | None ->
+                  checkerOpt <- Some(FSharpChecker.Create(projectCacheSize = 200))
+              | _ -> ()
+
+              match sourceOpt with
+              | None ->
+                  sourceOpt <- Some <| SourceText.ofString(File.ReadAllText("""C:\Users\vlza\code\fsharp\src\Compiler\Checking\CheckExpressions.fs"""))
+              | _ -> ()
 
 
-## 1.  Building a Proto Compiler
+          [<Benchmark>]
+          member _.ParsingTypeCheckerFs() =
+              match checkerOpt, sourceOpt with
+              | None, _ -> failwith "no checker"
+              | _, None -> failwith "no source"
+              | Some(checker), Some(source) ->
+                  let results = checker.ParseFile("CheckExpressions.fs",  source, parsingOptions) |> Async.RunSynchronously
+                  if results.ParseHadErrors then failwithf "parse had errors: %A" results.Diagnostics
 
-The compiler is compiled as a set of .NET 4.0 components using a bootstrap process. This uses the Last Known Good (LKG) compiler to build.  
-Note that you need the .NET framework 3.5 installed on your machine in order to complete this step.
+          [<IterationCleanup(Target = "ParsingTypeCheckerFs")>]
+          member _.ParsingTypeCheckerFsSetup() =
+              match checkerOpt with
+              | None -> failwith "no checker"
+              | Some(checker) ->
+                  checker.InvalidateAll()
+                  checker.ClearLanguageServiceRootCachesAndCollectAndFinalizeAllTransients()
+                  checker.ParseFile("dummy.fs", SourceText.ofString "dummy", parsingOptions) |> Async.RunSynchronously |> ignore
 
-    msbuild src\fsharp-proto-build.proj
-    
-## 2.  Building an F# (Debug) library and compiler
+      [<EntryPoint>]
+      let main _ =
+          BenchmarkRunner.Run<CompilerService>() |> ignore
+          0
+      ```
 
-This uses the proto compiler to build `FSharp.Core.dll`, `FSharp.Compiler.dll`, `fsc.exe`, and `fsi.exe`.
+      > For more detailed information about available BenchmarkDotNet options, please refer to [BenchmarkDotNet Documentation](https://benchmarkdotnet.org/articles/overview.html).
 
-    msbuild src/fsharp-library-build.proj 
-    msbuild src/fsharp-compiler-build.proj 
-    
-You can now use the updated F# compiler in `debug\net40\bin\fsc.exe` and F# Interactive in `debug\net40\bin\fsi.exe` to develop and test basic language and tool features.
+6. Build and run the benchmark.
 
-**Note:** The updated library is not used until you run `update.cmd`, see below.  The updated compiler is not run 'pre-compiled' until you run `update.cmd -ngen`, see below.
+      ```shell
+      dotnet build -c Release
+      dotnet run -c Release
+      ```
 
-## 3. Full Steps Before Running Tests
+7. You can find results in `.\BenchmarkDotNet.Artifacts\results\` in the current benchmark project directory.
 
-See [TESTGUIDE.md](TESTGUIDE.md) for full details on how to run tests.
-    
-Prior to a **Debug** test run, you need to complete **all** of these steps:
+    ```shell
+    > ls .\BenchmarkDotNet.Artifacts\results\
 
-    msbuild src/fsharp-library-build.proj
-    msbuild src/fsharp-compiler-build.proj
-    msbuild src/fsharp-typeproviders-build.proj
-    msbuild src/fsharp-compiler-unittests-build.proj
-    msbuild src/fsharp-library-build.proj /p:TargetFramework=net20
-    msbuild src/fsharp-library-build.proj /p:TargetFramework=portable47
-    msbuild src/fsharp-library-build.proj /p:TargetFramework=portable7
-    msbuild src/fsharp-library-build.proj /p:TargetFramework=portable78
-    msbuild src/fsharp-library-build.proj /p:TargetFramework=portable259
-    msbuild src/fsharp-library-unittests-build.proj
-    msbuild src/fsharp-library-unittests-build.proj /p:TargetFramework=portable47
-    msbuild src/fsharp-library-unittests-build.proj /p:TargetFramework=portable7
-    msbuild src/fsharp-library-unittests-build.proj /p:TargetFramework=portable78
-    msbuild src/fsharp-library-unittests-build.proj /p:TargetFramework=portable259
-    src\update.cmd debug -ngen
-    tests\BuildTestTools.cmd debug 
+        Directory: C:\Users\vlza\code\fsharp\tests\benchmarks\FCSBenchmarks\FcsBench\BenchmarkDotNet.Artifacts\results
 
+    Mode                 LastWriteTime         Length Name
+    ----                 -------------         ------ ----
+    -a---           4/25/2022  1:42 PM            638 Program.CompilerService-report-github.md
+    -a---           4/25/2022  1:42 PM           1050 Program.CompilerService-report.csv
+    -a---           4/25/2022  1:42 PM           1169 Program.CompilerService-report.html
+    ```
 
-[Optional] If testing the Visual Studio bits (see below) you will also need:
+    > *-report-github.md can be used to post benchmark results to GitHub issue/PR/discussion or RFC.
+    >
+    >*-report.csv can be used for comparison purposes.
 
-    msbuild vsintegration\fsharp-vsintegration-build.proj
-    msbuild vsintegration\fsharp-vsintegration-unittests-build.proj
+    **Example output:**
 
-Prior to a **Release** test run, you need to do **all** of these:
+    ``` ini
 
-    msbuild src/fsharp-library-build.proj  /p:Configuration=Release
-    msbuild src/fsharp-compiler-build.proj  /p:Configuration=Release
-    msbuild src/fsharp-typeproviders-build.proj  /p:Configuration=Release
-    msbuild src/fsharp-compiler-unittests-build.proj  /p:Configuration=Release
-    msbuild src/fsharp-library-build.proj /p:TargetFramework=net20 /p:Configuration=Release
-    msbuild src/fsharp-library-build.proj /p:TargetFramework=portable47 /p:Configuration=Release
-    msbuild src/fsharp-library-build.proj /p:TargetFramework=portable7 /p:Configuration=Release
-    msbuild src/fsharp-library-build.proj /p:TargetFramework=portable78 /p:Configuration=Release
-    msbuild src/fsharp-library-build.proj /p:TargetFramework=portable259 /p:Configuration=Release
-    msbuild src/fsharp-library-unittests-build.proj  /p:Configuration=Release
-    msbuild src/fsharp-library-unittests-build.proj /p:TargetFramework=portable47 /p:Configuration=Release
-    msbuild src/fsharp-library-unittests-build.proj /p:TargetFramework=portable7 /p:Configuration=Release
-    msbuild src/fsharp-library-unittests-build.proj /p:TargetFramework=portable78 /p:Configuration=Release
-    msbuild src/fsharp-library-unittests-build.proj /p:TargetFramework=portable259 /p:Configuration=Release
-    src\update.cmd release -ngen
-    tests\BuildTestTools.cmd release 
+    BenchmarkDotNet=v0.13.1, OS=Windows 10.0.25102
+    Intel Core i7-8750H CPU 2.20GHz (Coffee Lake), 1 CPU, 12 logical and 6 physical cores
+    .NET SDK=6.0.200
+      [Host]     : .NET 6.0.3 (6.0.322.12309), X64 RyuJIT DEBUG
+      Job-GDIBXX : .NET 6.0.3 (6.0.322.12309), X64 RyuJIT
 
+    InvocationCount=1  UnrollFactor=1
 
-[Optional] If testing **Release** build of the Visual F# IDE Tools (see below) you will also need:
+    ```
 
-    msbuild vsintegration\fsharp-vsintegration-build.proj /p:Configuration=Release
-    msbuild vsintegration\fsharp-vsintegration-unittests-build.proj /p:Configuration=Release
+    |               Method |     Mean |   Error |  StdDev |   Median |     Gen 0 |     Gen 1 | Allocated |
+    |--------------------- |---------:|--------:|--------:|---------:|----------:|----------:|----------:|
+    | ParsingTypeCheckerFs | 199.4 ms | 3.84 ms | 9.78 ms | 195.5 ms | 4000.0000 | 1000.0000 |     28 MB |
 
-## 4. [Optional] Install the Visual F# IDE Tools and Clobber the F# 4.0 SDK on the machine
+8. Repeat for any number of changes you would like to test.
+9. **Optionally:** benchmark code and results can be included as part of the PR for future reference.
 
-**Note:** Step #3 will install a VSIX extension into Visual Studio 2015 that changes the Visual F# IDE Tools 
-components installed into Visual Studio 2015.  You can revert this step by disabling or uninstalling the addin.
+## Additional resources
 
-**Note:** Step #4 will clobber the machine-wide installed F# 4.0 SDK on your machine. This replaces the ``fsi.exe``/``fsiAnyCpu.exe`` used 
-by Visual F# Interactive and the ``fsc.exe`` used by ``Microsoft.FSharp.targets``.  Repairing Visual Studio 2015 is currently the 
-only way to revert this step.  
+The primary technical guide to the core compiler code is [The F# Compiler Technical Guide](https://github.com/dotnet/fsharp/blob/main/docs/index.md). Please read and contribute to that guide.
 
-**Note:** After you complete the install, the FSharp.Core referenced by your projects will not be updated. If you want to make
-a project that references your updated FSharp.Core, you must explicitly change the ``TargetFSharpCoreVersion`` in the .fsproj
-file to ``4.4.0.5099`` (or a corresponding portable version number with suffix ``5099``).
+See the "Debugging The Compiler" section of this [article](https://medium.com/@willie.tetlow/f-mentorship-week-1-36f51d3812d4) for some examples.
 
-For **Debug**:
+## Addendum: configuring a proxy server
 
-1. Ensure that the VSIX package is uninstalled. In VS, select Tools/Extensions and Updates and if the package `VisualStudio.FSharp.EnableOpenSource` is installed, select Uninstall
-1. Run ``debug\net40\bin\EnableOpenSource.vsix``
-1. Run ``vsintegration\update-vsintegration.cmd debug`` (clobbers the installed F# 4.0 SDK)
+If you are behind a proxy server, NuGet client tool must be configured to use it:
 
-For **Release**:
-
-1. Ensure that the VSIX package is uninstalled. In VS, select Tools/Extensions and Updates and if the package `VisualStudio.FSharp.EnableOpenSource` is installed, select Uninstall
-1. Run ``release\net40\bin\EnableOpenSource.vsix``
-1. Run ``vsintegration\update-vsintegration.cmd release`` (clobbers the installed F# 4.0 SDK)
-
-Restart Visual Studio, it should now be running your freshly-built Visual F# IDE Tools with updated F# Interactive. 
-
-
-### Notes on the build
-
-1. The `update.cmd` script adds the built `FSharp.Core` to the GAC, adds required strong name validation skips, and NGens the compiler and libraries. This requires admin privileges.
-1. The compiler binaries produced are "private" and strong-named signed with a test key.
-1. Some additional tools are required to build the compiler, notably `fslex.exe`, `fsyacc.exe`, `FSharp.PowerPack.Build.Tasks.dll`, `FsSrGen.exe`, `FSharp.SRGen.Build.Tasks.dll`, and the other tools found in the `lkg` directory.
-1. The overall bootstrapping process executes as follows
- - We first need an existing F# compiler. We use the one in the `lkg` directory. Let's assume this compiler has an `FSharp.Core.dll` with version X.
- - We use this compiler to compile the source in this distribution, to produce a "proto" compiler, dropped to the `proto` directory. When run, this compiler still relies on `FSharp.Core.dll` with version X.
- - We use the proto compiler to compile the source for `FSharp.Core.dll` in this distribution.
- - We use the proto compiler to compile the source for `FSharp.Compiler.dll`, `fsc.exe`, `fsi.exe`, and other binaries found in this distribution.
+See the Nuget config file documention for use with a proxy server [https://learn.microsoft.com/nuget/reference/nuget-config-file](https://learn.microsoft.com/nuget/reference/nuget-config-file)

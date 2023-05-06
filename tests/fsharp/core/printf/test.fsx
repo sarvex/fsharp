@@ -1,29 +1,19 @@
 // #Conformance #Printing 
 
-#if Portable
+#if TESTS_AS_APP
 module Core_printf
 #endif
+
 #light
 
 open Printf
 
-let failures = ref false
-let report_failure () = 
-  stderr.WriteLine " NO"; failures := true
+let failures = ref []
 
-#if NetCore
-#else
-let argv = System.Environment.GetCommandLineArgs() 
-let SetCulture() = 
-  if argv.Length > 2 && argv.[1] = "--culture" then  begin
-    let cultureString = argv.[2] in 
-    let culture = new System.Globalization.CultureInfo(cultureString) in 
-    stdout.WriteLine ("Running under culture "+culture.ToString()+"...");
-    System.Threading.Thread.CurrentThread.CurrentCulture <-  culture
-  end 
-  
-do SetCulture()    
-#endif
+let report_failure (s : string) = 
+    stderr.Write" NO: "
+    stderr.WriteLine s
+    failures := !failures @ [s]
 
 // change this to true to run every test case
 // leave as false to randomly execute a subset of cases (this is a very expensive test area)
@@ -35,10 +25,10 @@ let rnd = System.Random()
 
 let test t (s1:Lazy<string>) s2 = 
   if runEveryTest || (rnd.Next() % 10) = 0 then
+      stdout.WriteLine ("running test "+t+"...")   
       let s1 = s1.Force()
       if s1 <> s2 then 
-        (stderr.WriteLine ("test "+t+": expected \n\t'"+s2+"' but produced \n\t'"+s1+"'");
-         failures := true)
+        report_failure ("test "+t+": expected \n\t'"+s2+"' but produced \n\t'"+s1+"'")
       else
         stdout.WriteLine ("test "+t+": correctly produced '"+s1+"'")   
 
@@ -46,6 +36,7 @@ let verify actual expected = test expected actual expected
 
 let adjust1 obj n1 = unbox ((unbox obj) n1)
 
+(*
 let _ = test "percent00" (lazy(sprintf "%%")) "%"
 let _ = test "percent01" (lazy(sprintf " %%%% ")) " %% "
 let _ = test "percent02" (lazy(sprintf "%.2f%.2%" 2.)) "2.00%"
@@ -56,6 +47,7 @@ let _ = test "percent06" (lazy(sprintf "%*% %*d" 20 8 5)) "%        5"
 let _ = test "percent07" (lazy(sprintf "%-+.*%%*d%*.*%" 55 0 8 77 88)) "%8%"
 let _ = test "percent08" (lazy(sprintf "%%d")) "%d"
 let _ = test "percent09" (lazy(sprintf "% *% %d" 10 6)) "% 6"
+*)
 
 let _ = test "cewoui2a" (lazy(sprintf "%o" 0)) "0"
 let _ = test "cewoui2b" (lazy(sprintf "%o" 0)) "0"
@@ -66,8 +58,22 @@ let _ = test "cewoui2e" (lazy(sprintf "%o" System.Int32.MinValue)) "20000000000"
 let _ = test "cewoui2r" (lazy(sprintf "%o" 0xffffffff)) "37777777777"
 let _ = test "cewoui2t" (lazy(sprintf "%o" (System.Int32.MinValue+1))) "20000000001"
 let _ = test "cewoui2y" (lazy(sprintf "%o" System.Int32.MaxValue)) "17777777777"
-
 let _ = test "cewoui2u" (lazy(sprintf "%o" (-1))) "37777777777"
+let _ = test "cewoui2i" (lazy(sprintf "%o" System.UInt64.MaxValue)) "1777777777777777777777"
+let _ = test "cewoui2i" (lazy(sprintf "%o" System.Int64.MinValue)) "1000000000000000000000"
+
+let _ = test "cewoui2aB" (lazy(sprintf "%B" 0)) "0"
+let _ = test "cewoui2bB" (lazy(sprintf "%B" 0)) "0"
+let _ = test "cewoui2cB" (lazy(sprintf "%B" 5)) "101"
+let _ = test "cewoui2qB" (lazy(sprintf "%B" 8)) "1000"
+let _ = test "cewoui2wB" (lazy(sprintf "%B" 15)) "1111"
+let _ = test "cewoui2eB" (lazy(sprintf "%B" System.Int32.MinValue)) "10000000000000000000000000000000"
+let _ = test "cewoui2rB" (lazy(sprintf "%B" 0xffffffff)) "11111111111111111111111111111111"
+let _ = test "cewoui2tB" (lazy(sprintf "%B" (System.Int32.MinValue+1))) "10000000000000000000000000000001"
+let _ = test "cewoui2yB" (lazy(sprintf "%B" System.Int32.MaxValue)) "1111111111111111111111111111111"
+let _ = test "cewoui2uB" (lazy(sprintf "%B" (-1))) "11111111111111111111111111111111"
+let _ = test "cewoui2iB" (lazy(sprintf "%B" System.UInt64.MaxValue)) "1111111111111111111111111111111111111111111111111111111111111111"
+let _ = test "cewoui2iB" (lazy(sprintf "%B" System.Int64.MinValue)) "1000000000000000000000000000000000000000000000000000000000000000"
 
 let f = sprintf "%o"
 
@@ -80,8 +86,20 @@ let _ = test "cewoui2h" (lazy(f System.Int32.MinValue)) "20000000000"
 let _ = test "cewoui2j" (lazy(f 0xffffffff)) "37777777777"
 let _ = test "cewoui2lk" (lazy(f (System.Int32.MinValue+1))) "20000000001"
 let _ = test "cewoui2l" (lazy(f System.Int32.MaxValue)) "17777777777"
-
 let _ = test "cewoui212" (lazy(f (-1))) "37777777777"
+
+let fB = sprintf "%B"
+
+let _ = test "cewoui2a" (lazy(fB 0)) "0"
+let _ = test "cewoui2s" (lazy(fB 0)) "0"
+let _ = test "cewoui2d" (lazy(fB 5)) "101"
+let _ = test "cewoui2f" (lazy(fB 8)) "1000"
+let _ = test "cewoui2g" (lazy(fB 15)) "1111"
+let _ = test "cewoui2h" (lazy(fB System.Int32.MinValue)) "10000000000000000000000000000000"
+let _ = test "cewoui2j" (lazy(fB 0xffffffff)) "11111111111111111111111111111111"
+let _ = test "cewoui2lk" (lazy(fB (System.Int32.MinValue+1))) "10000000000000000000000000000001"
+let _ = test "cewoui2l" (lazy(fB System.Int32.MaxValue)) "1111111111111111111111111111111"
+let _ = test "cewoui212" (lazy(fB (-1))) "11111111111111111111111111111111"
 
 // Test nothing comes out until all arguments have been applied
 let _ = test "csd3oui2!" (lazy(let buf = new System.Text.StringBuilder() in ignore (bprintf buf "%x%x" 0); buf.ToString())) ""
@@ -97,6 +115,8 @@ let _ = test "cewoui2Z" (lazy(sprintf "%x" System.Int32.MinValue)) "80000000"
 let _ = test "cewoui2X" (lazy(sprintf "%x" 0xffffffff)) "ffffffff"
 let _ = test "cewoui2A" (lazy(sprintf "%x" (System.Int32.MinValue+1))) "80000001"
 let _ = test "cewoui2Q" (lazy(sprintf "%x" System.Int32.MaxValue)) "7fffffff"
+let _ = test "cewoui2`" (lazy(sprintf "%x" System.UInt64.MaxValue)) "ffffffffffffffff"
+let _ = test "cewoui2~" (lazy(sprintf "%x" System.Int64.MinValue)) "8000000000000000"
 
 let fx = sprintf "%x"
 let _ = test "cewoui2W" (lazy(fx 0)) "0"
@@ -116,6 +136,8 @@ let _ = test "cewoui2v" (lazy(sprintf "%X" System.Int32.MinValue)) "80000000"
 let _ = test "cewoui2B" (lazy(sprintf "%X" 0xffffffff)) "FFFFFFFF"
 let _ = test "cewoui2N" (lazy(sprintf "%X" (System.Int32.MinValue+1))) "80000001"
 let _ = test "cewoui2M" (lazy(sprintf "%X" System.Int32.MaxValue)) "7FFFFFFF"
+let _ = test "cewoui2," (lazy(sprintf "%X" System.UInt64.MaxValue)) "FFFFFFFFFFFFFFFF"
+let _ = test "cewoui2." (lazy(sprintf "%X" System.Int64.MinValue)) "8000000000000000"
 
 let _ = test "cewou44a" (lazy(sprintf "%u" 0)) "0"
 let _ = test "cewou44b" (lazy(sprintf "%u" 5)) "5"
@@ -125,6 +147,7 @@ let _ = test "cewou44e" (lazy(sprintf "%u" System.Int32.MinValue)) "2147483648"
 let _ = test "cewou44f" (lazy(sprintf "%u" 0xffffffff)) "4294967295"
 let _ = test "cewou44g" (lazy(sprintf "%u" (System.Int32.MinValue+1))) "2147483649"
 let _ = test "cewou44h" (lazy(sprintf "%u" System.Int32.MaxValue)) "2147483647"
+let _ = test "cewou44i" (lazy(sprintf "%u" System.UInt64.MaxValue)) "18446744073709551615"
 
 let _ = test "cewou45a" (lazy(sprintf "%d" 0ul)) "0"
 let _ = test "cewou45b" (lazy(sprintf "%d" 5ul)) "5"
@@ -134,6 +157,7 @@ let _ = test "cewou45e" (lazy(sprintf "%d" 2147483648ul)) "2147483648"
 let _ = test "cewou45f" (lazy(sprintf "%d" 4294967295ul)) "4294967295"
 let _ = test "cewou45g" (lazy(sprintf "%d" 2147483649ul)) "2147483649"
 let _ = test "cewou45h" (lazy(sprintf "%d" 2147483647ul)) "2147483647"
+let _ = test "cewou45i" (lazy(sprintf "%d" System.UInt64.MaxValue)) "18446744073709551615"
 
 let _ = test "cewou46a" (lazy(sprintf "%d" 0ul)) "0"
 let _ = test "cewou46b" (lazy(sprintf "%d" 5ul)) "5"
@@ -143,6 +167,7 @@ let _ = test "cewou46e" (lazy(sprintf "%d" 2147483648ul)) "2147483648"
 let _ = test "cewou46f" (lazy(sprintf "%d" 4294967295ul)) "4294967295"
 let _ = test "cewou46g" (lazy(sprintf "%d" 2147483649ul)) "2147483649"
 let _ = test "cewou46h" (lazy(sprintf "%d" 2147483647ul)) "2147483647"
+let _ = test "cewou46i" (lazy(sprintf "%d" System.UInt64.MaxValue)) "18446744073709551615"
 
 let _ = test "ceew903" (lazy(sprintf "%u" System.Int64.MaxValue)) "9223372036854775807"
 let _ = test "ceew903" (lazy(sprintf "%u" System.Int64.MinValue)) "9223372036854775808"
@@ -297,9 +322,6 @@ let bug600c = sprintf "%x"
 let _ = test "bug600a3" (lazy(bug600c 2)) "2" 
 let _ = test "bug600b3" (lazy(bug600c 2)) "2" (* not 22! *)
 
-let _ = 
-  if !failures then (stdout.WriteLine "Test Failed"; exit 1) 
-
 let _ = test "ckwoih" (lazy(sprintf "%x" 0xFFy)) ("ff")
 let _ = test "ckwoih" (lazy(sprintf "%x" 0xFFFFs)) ("ffff")
 let _ = test "ckwoih" (lazy(sprintf "%x" 0xFFFFFFFF)) ("ffffffff")
@@ -384,6 +406,172 @@ module CheckDisplayAttributes8 =
        override x.ToString() = "2"
 
     test "cenwoiwe8" (lazy(sprintf "%A" (Foo()))) "[1; 2]"
+
+// Check one returning two strings
+module CheckDisplayAttributes9 =
+
+    [<StructuredFormatDisplay("{Hello} {World}")>]
+    type Foo() = 
+       member internal x.Hello = "Hello"
+       member internal x.World = "World"
+
+    test "cenwoiwe9" (lazy(sprintf "%A" (Foo()))) "Hello World"
+
+// Check one returning an int and a list
+module CheckDisplayAttributes10 =
+
+    [<StructuredFormatDisplay("{Hello}: {StructuredDisplay}")>]
+    type Foo() = 
+       member internal x.StructuredDisplay = [1;2]
+       member internal x.Hello = "Hello"
+       override x.ToString() = "2"
+
+    test "cenwoiwe10" (lazy(sprintf "%A" (Foo()))) "Hello: [1; 2]"
+
+// Check one returning an int and a string with no spaces
+module CheckDisplayAttributes11 =
+
+    [<StructuredFormatDisplay("{Val}{Hello}")>]
+    type Foo() = 
+       member internal x.Val = 42
+       member internal x.Hello = "Hello"
+
+    test "cenwoiwe11" (lazy(sprintf "%A" (Foo()))) "42Hello"
+
+// Check one with an unmatched opening bracket
+module CheckDisplayAttributes12 =
+
+    [<StructuredFormatDisplay("{Val{Hello}")>]
+    type Foo() = 
+       member internal x.Val = 42
+       member internal x.Hello = "Hello"
+       override x.ToString() = "x"
+
+    let tName = typeof<Foo>.FullName
+    // this should produce an error
+    test "cenwoiwe12" (lazy(sprintf "%A" (Foo()))) ("<StructuredFormatDisplay exception: Method '"+tName+".Val{Hello' not found.>")
+
+// Check one with an unmatched closing bracket
+module CheckDisplayAttributes13 =
+
+    [<StructuredFormatDisplay("{Val}Hello}")>]
+    type Foo() = 
+       member internal x.Val = 42
+       member internal x.Hello = "Hello"
+       override x.ToString() = "x"
+
+    test "cenwoiwe13" (lazy(sprintf "%A" (Foo()))) "x"
+
+// Check one with an unmatched trailing open bracket
+module CheckDisplayAttributes14 =
+
+    [<StructuredFormatDisplay("{Val}{Hello")>]
+    type Foo() = 
+       member internal x.Val = 42
+       member internal x.Hello = "Hello"
+       override x.ToString() = "x"
+
+    test "cenwoiwe14" (lazy(sprintf "%A" (Foo()))) "x"
+
+// Check one with unbounded recursion
+module CheckDisplayAttributes15 =
+
+    [<StructuredFormatDisplay("{X} {X}")>]
+    type Foo() = 
+       member internal x.X = Foo()
+
+    test "cenwoiwe15" (lazy(sprintf "%A" (Foo()))) "... ... ... ... ... ... ... ..."
+
+// Check escaped brackets with no other members
+module CheckDisplayAttributes16 =
+
+    [<StructuredFormatDisplay("{\{\}}")>]
+    type Foo() = 
+      member __.``{}`` = "abc"
+
+    test "cenwoiwe16" (lazy(sprintf "%A" (Foo()))) "abc"
+
+// Check escaped brackets with other members
+module CheckDisplayAttributes17 =
+
+    [<StructuredFormatDisplay("{One\} \{Two}")>]
+    type Foo() =
+      member __.``One} {Two`` = "abc"
+      member __.One = 123
+      member __.Two = 456
+
+    test "cenwoiwe17" (lazy(sprintf "%A" (Foo()))) "abc"
+
+// Check escaped brackets with all brackets escaped
+module CheckDisplayAttributes18 =
+
+    [<StructuredFormatDisplay("\{One\} \{Two\}")>]
+    type Foo() =
+      member __.``One} {Two`` = "abc"
+      member __.One = 123
+      member __.Two = 456
+      override x.ToString() = "x"
+
+    test "cenwoiwe18" (lazy(sprintf "%A" (Foo()))) "{One} {Two}"
+
+// Check escaped brackets with opening bracket escaped, invalidating property reference
+module CheckDisplayAttributes19 =
+
+    [<StructuredFormatDisplay("\{One\} \{Two}")>]
+    type Foo() =
+      member __.``One} {Two`` = "abc"
+      member __.One = 123
+      member __.Two = 456
+      override x.ToString() = "x"
+
+    test "cenwoiwe19" (lazy(sprintf "%A" (Foo()))) "x"
+
+// Check escaped brackets with closing bracket escaped, invalidating property reference
+module CheckDisplayAttributes20 =
+
+    [<StructuredFormatDisplay("{One\} \{Two\}")>]
+    type Foo() =
+      member __.``One} {Two`` = "abc"
+      member __.One = 123
+      member __.Two = 456
+      override x.ToString() = "x"
+
+    test "cenwoiwe20" (lazy(sprintf "%A" (Foo()))) "x"
+
+// Check escaped brackets display properly
+module CheckDisplayAttributes21 =
+
+    [<StructuredFormatDisplay("\{{One}\}")>]
+    type Foo() =
+      member __.``One} {Two`` = "abc"
+      member __.One = 123
+      member __.Two = 456
+      override x.ToString() = "x"
+
+    test "cenwoiwe21" (lazy(sprintf "%A" (Foo()))) "{123}"
+
+// Check one with an two matched pairs and a trailing closing bracket
+module CheckDisplayAttributes22 =
+
+    [<StructuredFormatDisplay("{Val}{Hello} }")>]
+    type Foo() = 
+       member internal x.Val = 42
+       member internal x.Hello = "Hello"
+       override x.ToString() = "x"
+
+    test "cenwoiwe22" (lazy(sprintf "%A" (Foo()))) "x"
+
+// Check one with an two matched pairs and an unmatched closing bracket in-between
+module CheckDisplayAttributes23 =
+
+    [<StructuredFormatDisplay("{Val} } {Hello}")>]
+    type Foo() = 
+       member internal x.Val = 42
+       member internal x.Hello = "Hello"
+       override x.ToString() = "x"
+
+    test "cenwoiwe23" (lazy(sprintf "%A" (Foo()))) "x"
+
 let func0()=
     test "test1" (lazy(sprintf "%b" true)) "true"
     test "test2" (lazy(sprintf "%5b" true)) " true"
@@ -3387,6 +3575,7 @@ let func2000()=
     test "test2998" (lazy(sprintf "%-05x" 50000UL)) "c350 "
     test "test2999" (lazy(sprintf "%-01x" 50000UL)) "c350"
     test "test3000" (lazy(sprintf "%-0*x" 7 50000UL)) "c350   "
+#if COMPILED
 let func3000()=
     test "test3001" (lazy(sprintf "%+x" 50000UL)) "+c350"
     test "test3002" (lazy(sprintf "%+5x" 50000UL)) "+c350"
@@ -9130,25 +9319,30 @@ let func8000()=
     test "test8735" (lazy(sprintf "09-00%d09-01%d09-02%d09-03%d09-04%d09-05%d09-06%d09-07%d09-08%a19-10%d19-11%d19-12%d19-13%d19-14%d19-15%d19-16%d19-17%d19-18%a29-20%d29-21%d29-22%d29-23%d29-24%d29-25%d29-26%d29-27%d29-28%a39-30%d39-31%d39-32%d39-33%d39-34%d39-35%d39-36%d39-37%d39-38%a49-40%d49-41%d49-42%d49-43%d49-44%d49-45%d49-46%d49-47%d49-48%a59-50%d59-51%d59-52%d59-53%d59-54%d59-55%d59-56%d59-57%d59-58%a69-60%d69-61%d69-62%d69-63%d69-64%d69-65%d69-66%d69-67%d69-68%a79-70%d79-71%d79-72%d79-73%d79-74%d79-75%d79-76%d79-77%d79-78%a89-80%d89-81%d89-82%d89-83%d89-84%d89-85%d89-86%d89-87%d89-88%a99-90%d99-91%d99-92%d99-93%d99-94%d99-95%d99-96%d99-97%d99-98%a_TAIL" 0 1 2 3 4 5 6 7  (fun _ v -> (string v) + "X") 1  10 11 12 13 14 15 16 17  (fun _ v -> (string v) + "X") 2  20 21 22 23 24 25 26 27  (fun _ v -> (string v) + "X") 3  30 31 32 33 34 35 36 37  (fun _ v -> (string v) + "X") 4  40 41 42 43 44 45 46 47  (fun _ v -> (string v) + "X") 5  50 51 52 53 54 55 56 57  (fun _ v -> (string v) + "X") 6  60 61 62 63 64 65 66 67  (fun _ v -> (string v) + "X") 7  70 71 72 73 74 75 76 77  (fun _ v -> (string v) + "X") 8  80 81 82 83 84 85 86 87  (fun _ v -> (string v) + "X") 9  90 91 92 93 94 95 96 97 (fun _ v -> (string v) + "X") System.IO.FileShare.Read  )) "09-00009-01109-02209-03309-04409-05509-06609-07709-081X19-101019-111119-121219-131319-141419-151519-161619-171719-182X29-202029-212129-222229-232329-242429-252529-262629-272729-283X39-303039-313139-323239-333339-343439-353539-363639-373739-384X49-404049-414149-424249-434349-444449-454549-464649-474749-485X59-505059-515159-525259-535359-545459-555559-565659-575759-586X69-606069-616169-626269-636369-646469-656569-666669-676769-687X79-707079-717179-727279-737379-747479-757579-767679-777779-788X89-808089-818189-828289-838389-848489-858589-868689-878789-889X99-909099-919199-929299-939399-949499-959599-969699-979799-98ReadX_TAIL"
     test "test8736" (lazy(sprintf "09-00%d09-01%d09-02%d09-03%d09-04%d09-05%d09-06%d09-07%d09-08%d09-09%a19-10%d19-11%d19-12%d19-13%d19-14%d19-15%d19-16%d19-17%d19-18%d19-19%a29-20%d29-21%d29-22%d29-23%d29-24%d29-25%d29-26%d29-27%d29-28%d29-29%a39-30%d39-31%d39-32%d39-33%d39-34%d39-35%d39-36%d39-37%d39-38%d39-39%a49-40%d49-41%d49-42%d49-43%d49-44%d49-45%d49-46%d49-47%d49-48%d49-49%a59-50%d59-51%d59-52%d59-53%d59-54%d59-55%d59-56%d59-57%d59-58%d59-59%a69-60%d69-61%d69-62%d69-63%d69-64%d69-65%d69-66%d69-67%d69-68%d69-69%a79-70%d79-71%d79-72%d79-73%d79-74%d79-75%d79-76%d79-77%d79-78%d79-79%a89-80%d89-81%d89-82%d89-83%d89-84%d89-85%d89-86%d89-87%d89-88%d89-89%a99-90%d99-91%d99-92%d99-93%d99-94%d99-95%d99-96%d99-97%d99-98%d99-99" 0 1 2 3 4 5 6 7 8  (fun _ v -> (string v) + "X") 1  10 11 12 13 14 15 16 17 18  (fun _ v -> (string v) + "X") 2  20 21 22 23 24 25 26 27 28  (fun _ v -> (string v) + "X") 3  30 31 32 33 34 35 36 37 38  (fun _ v -> (string v) + "X") 4  40 41 42 43 44 45 46 47 48  (fun _ v -> (string v) + "X") 5  50 51 52 53 54 55 56 57 58  (fun _ v -> (string v) + "X") 6  60 61 62 63 64 65 66 67 68  (fun _ v -> (string v) + "X") 7  70 71 72 73 74 75 76 77 78  (fun _ v -> (string v) + "X") 8  80 81 82 83 84 85 86 87 88  (fun _ v -> (string v) + "X") 9  90 91 92 93 94 95 96 97 98 )) "09-00009-01109-02209-03309-04409-05509-06609-07709-08809-091X19-101019-111119-121219-131319-141419-151519-161619-171719-181819-192X29-202029-212129-222229-232329-242429-252529-262629-272729-282829-293X39-303039-313139-323239-333339-343439-353539-363639-373739-383839-394X49-404049-414149-424249-434349-444449-454549-464649-474749-484849-495X59-505059-515159-525259-535359-545459-555559-565659-575759-585859-596X69-606069-616169-626269-636369-646469-656569-666669-676769-686869-697X79-707079-717179-727279-737379-747479-757579-767679-777779-787879-798X89-808089-818189-828289-838389-848489-858589-868689-878789-888889-899X99-909099-919199-929299-939399-949499-959599-969699-979799-989899-99"
     test "test8737" (lazy(sprintf "09-00%d09-01%d09-02%d09-03%d09-04%d09-05%d09-06%d09-07%d09-08%d09-09%a19-10%d19-11%d19-12%d19-13%d19-14%d19-15%d19-16%d19-17%d19-18%d19-19%a29-20%d29-21%d29-22%d29-23%d29-24%d29-25%d29-26%d29-27%d29-28%d29-29%a39-30%d39-31%d39-32%d39-33%d39-34%d39-35%d39-36%d39-37%d39-38%d39-39%a49-40%d49-41%d49-42%d49-43%d49-44%d49-45%d49-46%d49-47%d49-48%d49-49%a59-50%d59-51%d59-52%d59-53%d59-54%d59-55%d59-56%d59-57%d59-58%d59-59%a69-60%d69-61%d69-62%d69-63%d69-64%d69-65%d69-66%d69-67%d69-68%d69-69%a79-70%d79-71%d79-72%d79-73%d79-74%d79-75%d79-76%d79-77%d79-78%d79-79%a89-80%d89-81%d89-82%d89-83%d89-84%d89-85%d89-86%d89-87%d89-88%d89-89%a99-90%d99-91%d99-92%d99-93%d99-94%d99-95%d99-96%d99-97%d99-98%d99-99%a_TAIL" 0 1 2 3 4 5 6 7 8  (fun _ v -> (string v) + "X") 1  10 11 12 13 14 15 16 17 18  (fun _ v -> (string v) + "X") 2  20 21 22 23 24 25 26 27 28  (fun _ v -> (string v) + "X") 3  30 31 32 33 34 35 36 37 38  (fun _ v -> (string v) + "X") 4  40 41 42 43 44 45 46 47 48  (fun _ v -> (string v) + "X") 5  50 51 52 53 54 55 56 57 58  (fun _ v -> (string v) + "X") 6  60 61 62 63 64 65 66 67 68  (fun _ v -> (string v) + "X") 7  70 71 72 73 74 75 76 77 78  (fun _ v -> (string v) + "X") 8  80 81 82 83 84 85 86 87 88  (fun _ v -> (string v) + "X") 9  90 91 92 93 94 95 96 97 98 (fun _ v -> (string v) + "X") System.IO.FileShare.Read  )) "09-00009-01109-02209-03309-04409-05509-06609-07709-08809-091X19-101019-111119-121219-131319-141419-151519-161619-171719-181819-192X29-202029-212129-222229-232329-242429-252529-262629-272729-282829-293X39-303039-313139-323239-333339-343439-353539-363639-373739-383839-394X49-404049-414149-424249-434349-444449-454549-464649-474749-484849-495X59-505059-515159-525259-535359-545459-555559-565659-575759-585859-596X69-606069-616169-626269-636369-646469-656569-666669-676769-686869-697X79-707079-717179-727279-737379-747479-757579-767679-777779-787879-798X89-808089-818189-828289-838389-848489-858589-868689-878789-888889-899X99-909099-919199-929299-939399-949499-959599-969699-979799-989899-99ReadX_TAIL"
+#endif
 func0()
 func1000()
 func2000()
+#if COMPILED
 func3000()
 func4000()
 func5000()
 func6000()
 func7000()
 func8000()
-
-#if Portable
-let aa =
-    if !failures then (printfn "Test Failed, failures = %A" failures; exit 1)
-    else (stdout.WriteLine "Test Passed"; exit 0)
-#else
-let _ = 
-    if !failures then (printf "Test Failed"; exit 1) 
 #endif
-  
-do (stdout.WriteLine "Test Passed"; 
-    System.IO.File.WriteAllText("test.ok","ok"); 
-    exit 0)
+
+#if TESTS_AS_APP
+let RUN() = !failures
+#else
+let aa =
+  match !failures with 
+  | [] -> 
+      stdout.WriteLine "Test Passed"
+      System.IO.File.WriteAllText("test.ok","ok")
+      exit 0
+  | _ -> 
+      stdout.WriteLine "Test Failed"
+      exit 1
+#endif
+

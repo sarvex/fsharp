@@ -1,5 +1,8 @@
 namespace global
 
+[<assembly: System.Reflection.AssemblyCopyrightAttribute("hey!")>]
+do ()
+
 type TheGeneratedType1() = 
     member x.Prop1 = 1
     static member (+) (x1:TheGeneratedType1,x2:TheGeneratedType1) = x1
@@ -193,5 +196,5 @@ module TheOuterType =
 
 module DllImportSmokeTest = 
     [<System.Runtime.InteropServices.DllImport("kernel32.dll")>]
-    extern System.UInt32 private GetLastError()
+    extern System.UInt32 GetLastError()
 

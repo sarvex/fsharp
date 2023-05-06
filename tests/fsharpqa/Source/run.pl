@@ -75,7 +75,10 @@ if (defined($ENV{EXCLUDEIF})){
 $VerifyStrongName = 1 if ($ENV{VERIFYSTRONGNAME} =~ /TRUE/i);
 
 # Check for any compiler flags
-my $SCFLAGS = $ENV{SCFLAGS};
+my $CWD = cwd();
+$_ = $ENV{SCFLAGS};
+s/\$CWD/$CWD/g;
+my $SCFLAGS = $_;
 
 # Check for any compiler 'tail' flags
 my $TAILFLAGS = $ENV{TAILFLAGS};
@@ -83,7 +86,7 @@ my $TAILFLAGS = $ENV{TAILFLAGS};
 # Check for any global compiler flags
 my $ISCFLAGS = $ENV{ISCFLAGS};
 unless( defined($ISCFLAGS) ){
-  $ISCFLAGS = "-g --optimize";
+  $ISCFLAGS = " ";
 }
 
 # Filter out flags that don't make sense in FSI (e.g. --standalone)
@@ -159,13 +162,13 @@ if (exists($ENV{PRECMD})) {
   #    SOURCE=foo.fs PRECMD="\$FSC_PIPE bar.fs"
   # and it will expanded into $FSC_PIPE before invoking it
   $_ = $ENV{PRECMD};
-  s/^\$FSC_PIPE/$FSC_PIPE/;
-  s/^\$FSI_PIPE/$FSI_PIPE/;
-  s/^\$FSI32_PIPE/$FSI32_PIPE/;
-  s/\$ISCFLAGS/$ISCFLAGS/;
-  s/^\$CSC_PIPE/$CSC_PIPE/;
-  s/^\$VBC_PIPE/$VBC_PIPE/;
-  RunExit(TEST_FAIL, "Fail to execute the PRECMD" . @CommandOutput . "\n")  if RunCommand("PRECMD",$_ ,1); 
+  s/\$FSC_PIPE/$FSC_PIPE/g;
+  s/\$FSI_PIPE/$FSI_PIPE/g;
+  s/\$FSI32_PIPE/$FSI32_PIPE/g;
+  s/\$ISCFLAGS/$ISCFLAGS/g;
+  s/\$CSC_PIPE/$CSC_PIPE/g;
+  s/\$VBC_PIPE/$VBC_PIPE/g;
+  RunExit(TEST_FAIL, "Fail to execute the PRECMD:\n" . join("\n", @CommandOutput) . "\n")  if RunCommand("PRECMD",$_ ,1);
 }
 
 # Normal testing begins 
@@ -264,11 +267,20 @@ if($ENV{REDUCED_RUNTIME} ne "1"){
      # check/set PEVerify
      my $PEVERIFY = $ENV{PEVERIFY}; 
      unless(defined($PEVERIFY)) {
-       # Only use peverify if it is in the path
-       foreach $_ (split /;/, $ENV{PATH}) {
-         $PEVERIFY = "peverify.exe" if(-e "$_\\peverify.exe");
+       my $scriptPath = dirname(__FILE__);
+       my @configurations = ("Debug", "Release");
+       foreach my $config (@configurations) {
+         $PEVERIFY = "$scriptPath\\..\\..\\..\\artifacts\\bin\\PEVerify\\$config\\net472\\PEVerify.exe";
+         if (-e $PEVERIFY) {
+           $ENV{PEVERIFY} = $PEVERIFY;
+           last;
+         }
        }
-       $ENV{PEVERIFY} = $PEVERIFY;
+     }
+
+     unless(-e $PEVERIFY) {
+        $PEVERIFY = "PEVerify.exe";
+        $ENV{PEVERIFY} = $PEVERIFY;
      }
 
      # Use $ENV{PEVER} if it is defined
@@ -313,7 +325,22 @@ if ($targetType == TARGET_EXE) {
       RunCommand("Marking exe with /LARGEADDRESSAWARE...","editbin.exe /LARGEADDRESSAWARE $targetName");
   }
 
-  $ExitCode = RunCommand("Running","$ENV{SIMULATOR_PIPE} $targetName $param");
+  my $sim = "";
+  if (defined($ENV{SIMULATOR_PIPE})) {
+    # replace known tokens
+    $_ = $ENV{SIMULATOR_PIPE};
+    s/^\$FSC_PIPE/$FSC_PIPE/;
+    s/^\$FSI_PIPE/$FSI_PIPE/;
+    s/^\$FSI32_PIPE/$FSI32_PIPE/;
+    s/\$ISCFLAGS/$ISCFLAGS/;
+    s/^\$CSC_PIPE/$CSC_PIPE/;
+    s/^\$VBC_PIPE/$VBC_PIPE/;
+    s/\$PLATFORM/$ENV{PLATFORM}/;
+    
+    $sim = $_;
+  }
+
+  $ExitCode = RunCommand("Running","$sim $targetName $param");
   my($DeltaTime) = time() - $StartTime;
 
   LogTime($Sources, $CompileTime, $DeltaTime) if ($TimeTests);
@@ -354,7 +381,7 @@ if ($targetType == TARGET_EXE) {
 }
 
 if ($VerifyStrongName && $targetType <= TARGET_MOD) {
-  RunExit(TEST_FAIL, "Assembly failed verification:\n") if RunCommand("VerifyStroingName","sn -q -vf $targetName",1);
+  RunExit(TEST_FAIL, "Assembly failed verification:\n") if RunCommand("VerifyStrongName","sn -q -vf $targetName",1);
 }
 
 RunExit(TEST_PASS);
@@ -387,9 +414,12 @@ sub RunCompilerCommand {
                                 PeerAddr => "localhost",
                                 PeerPort => $port,
                             ) or sleep(1);
-            $attempts++;                            
+            $attempts++;
         }
-        RunExit(TEST_FAIL, "Unable to connect to hosted compiler \n") unless $remote;
+        until($remote) {
+            # if we were unable to connect to the hosted compiler try to run the one we built
+            return RunCommand($msg, $cmd);
+        }
         
         my $currDir = getcwd();
 
@@ -402,10 +432,19 @@ sub RunCompilerCommand {
         # remainder of response is output of compiler
         @CommandOutput = <$remote>;
 
+        print "--------------------------------------------------------\n";
+        print "Results from hosted compiler\n";
+        print "msg: $msg\n";
+        print "cmd: $cmd\n";
+        print "Exit code: $ExitCode\n";
+        print "Error:     $Type\n";
+        print @CommandOutput;
+        print "--------------------------------------------------------\n";
+
         # still some issues with reliability of hosted compiler.
         # if compilation unexpectedly fails, try again with standard compiler
         if ($ExitCode && ($Type < TEST_SEEK_ERROR)) {
-          return RunCommand($msg, $cmd);
+                return RunCommand($msg, $cmd); 
         }
 
         return $ExitCode;
@@ -438,9 +477,10 @@ sub RunCommand {
   open(COMMAND,"$cmd 2>&1 |") or RunExit(TEST_FAIL, "Command Process Couldn't Be Created: $! Returned $? \n");
   @CommandOutput = <COMMAND>;
   close COMMAND;
+  my $result = $?;
 #  close STDERR; open STDERR, ">&SAVEERR"; #resore stderr
 
-  print @CommandOutput if ($dumpOutput == 1);
+  print(join("\n", @CommandOutput)) if ($dumpOutput == 1);
 
   # Test for an assertion failure
   if (-e ASSERT_FILE) {
@@ -452,7 +492,8 @@ sub RunCommand {
     close ASSERT;
     RunExit(TEST_FAIL, "Command Unexpectedly Failed with ASSERT \n");
   }
-  return $?;
+
+  return $result;
 }
 
 #############################################################
@@ -460,7 +501,9 @@ sub RunCommand {
 #
 sub GetSrc() {
   # The environment SOURCE var usually defines what to compile
-  my $source = $ENV{SOURCE};
+  $_ = $ENV{SOURCE};
+  s/\$CWD/$CWD/;
+  my $source = $_;
   return($source) if defined($source);
 
   # Or if there's only one source file in the directory
@@ -617,7 +660,7 @@ sub GetExpectedResults(){
       push @dontmatch, $2 if $2;
     }
     # test full xml form
-    elsif (m@//\s*<Expect\w*\s*Status\s*=\s*(notin)\s*>\s*(.*?)\s*<(/Expect|/)\w*>@i) {
+    elsif (m@//\s*<Expect\w*\s*Status\s*=\s*\"?(notin)\"?\s*>\s*(.*?)\s*<(/Expect|/)\w*>@i) {
       push @dontmatch, $2 if $2;
     } else {
       next;
@@ -736,11 +779,11 @@ sub RunExit {
      #    SOURCE=foo.fs POSTCMD="\$FSC_PIPE bar.fs"
      # and it will expanded into $FSC_PIPE before invoking it
      $_ = $ENV{POSTCMD};
-     s/^\$FSC_PIPE/$FSC_PIPE/;
-     s/^\$FSI_PIPE/$FSI_PIPE/;
-     s/^\$FSI32_PIPE/$FSI32_PIPE/;
-     s/^\$CSC_PIPE/$CSC_PIPE/;
-     s/^\$VBC_PIPE/$VBC_PIPE/;
+     s/\$FSC_PIPE/$FSC_PIPE/g;
+     s/\$FSI_PIPE/$FSI_PIPE/g;
+     s/\$FSI32_PIPE/$FSI32_PIPE/g;
+     s/\$CSC_PIPE/$CSC_PIPE/g;
+     s/\$VBC_PIPE/$VBC_PIPE/g;
 
      if (RunCommand("POSTCMD",$_,1)){
   $exitVal = TEST_FAIL;
